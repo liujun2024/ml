@@ -345,6 +345,7 @@ def train_batch_dask(model, X, y, param_name, param_range, dask_client: Client, 
         cv=cv,
         param_name=param_name,
         param_range=param_range,
+        pure=False,  # 禁用缓存
     )
 
     # 获取结果
