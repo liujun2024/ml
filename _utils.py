@@ -305,9 +305,9 @@ def train_batch_local(model, X, y, param_name, param_range, cpu=1, cv=10):
     return dict_score
 
 
-def _train_batch_worker(model, X, y, cv, param_name, param_range):
+def train_batch_worker(model, X, y, cv, param_name, param_range):
     """在 Dask Worker 上执行的函数"""
-    
+
     from sklearn.model_selection import validation_curve
     
     score_train, score_test = validation_curve(
@@ -338,7 +338,7 @@ def train_batch_dask(model, X, y, param_name, param_range, dask_client: Client, 
 
     # 提交任务到 Worker
     future = dask_client.submit(
-        _train_batch_worker,
+        train_batch_worker,
         model=model,
         X=X_future,
         y=y_future,
