@@ -380,11 +380,14 @@ def _prepare_lab_array(arr):
     Arrays must be in floating point and have at least 3 elements in
     last dimension.  Return a new array.
     """
-    arr = np.asarray(arr)
+    # arr = np.asarray(arr)
+    arr = np.asarray(arr, dtype=np.float64)
     shape = arr.shape
     if shape[-1] < 3:
         raise ValueError('Input array has less than 3 color channels')
-    return img_as_float(arr, force_copy=True)
+    # return img_as_float(arr, force_copy=True)
+
+    return arr
 
 def get_xyz_coords(illuminant, observer):
     """Get the XYZ coordinates of the given illuminant and observer [1]_.
@@ -426,7 +429,8 @@ def _prepare_colorarray(arr):
                "got (" + (", ".join(map(str, arr.shape))) + ")")
         raise ValueError(msg)
 
-    return img_as_float(arr)
+    # return img_as_float(arr)
+    return arr.astype(np.float64)
 
 def xyz2rgb(xyz):
     """XYZ to RGB color space conversion.

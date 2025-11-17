@@ -311,17 +311,17 @@ def train_batch_dask(model, X, y, param_name, param_range, dask_client: Client, 
     print(f"🚀 在 Dask Worker 上执行...")
     
 
-    def worker_task(X, y):
+    def worker_task(model_serialized, X, y):
         """在 Dask Worker 上执行的函数"""
 
         from sklearn.model_selection import validation_curve
         
         score_train, score_test = validation_curve(
-            estimator=model,
+            estimator=model_serialized,
             X=X,
             y=y,
             cv=cv,
-            n_jobs=-1,  # Worker 使用所有本地核心
+            n_jobs=cpu,  # Worker 使用所有本地核心
             param_name=param_name,
             param_range=param_range,
         )
@@ -331,14 +331,15 @@ def train_batch_dask(model, X, y, param_name, param_range, dask_client: Client, 
 
     # 预加载数据到 Worker（如果还没加载过）
     if not hasattr(dask_client, '_train_data_cached'):
+        model_serialized = dask_client.scatter(model, broadcast=True)
         X_future = dask_client.scatter(X, broadcast=True)
         y_future = dask_client.scatter(y, broadcast=True)
-        dask_client._train_data_cached = (X_future, y_future)
+        dask_client._train_data_cached = (model_serialized, X_future, y_future)
     else:
-        X_future, y_future = dask_client._train_data_cached
+        model_serialized, X_future, y_future = dask_client._train_data_cached
 
     # 提交任务到 Worker
-    future = dask_client.submit(worker_task, X_future, y=y_future)
+    future = dask_client.submit(worker_task, model_serialized, X_future, y_future)
 
     # 获取结果
     score_train, score_test = future.result()

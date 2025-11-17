@@ -31,8 +31,8 @@ plt.rcParams['savefig.transparent'] = True  # 图片保存透明背景
 plt.rcParams['font.size'] = 16  # 图片默认字号
 plt.rcParams['axes.unicode_minus'] = False  # 作图时正常显示符号
 plt.rcParams['axes.linewidth'] = 1.2  # spine 边框线宽
-# plt.rcParams['font.sans-serif'] = 'Microsoft YaHei'  # 作图字体：微软雅黑（同时支持中英文）
-plt.rcParams['font.sans-serif'] = 'Times New Roman'  # 作图字体：微软雅黑（同时支持中英文）
+plt.rcParams['font.sans-serif'] = 'Microsoft YaHei'  # 作图字体：微软雅黑（同时支持中英文）
+# plt.rcParams['font.sans-serif'] = 'Times New Roman'  # 作图字体：微软雅黑（同时支持中英文）
 for v in ['xtick', 'ytick']:
     plt.rcParams[v + '.major.size'] = 6  # 主刻度线长
     plt.rcParams[v + '.minor.size'] = 4  # 次刻度线长

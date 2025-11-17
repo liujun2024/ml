@@ -13,6 +13,7 @@ import skops.io as sio
 import matplotlib.pyplot as plt
 # from sklearn.model_selection import validation_curve
 from auto_shap.auto_shap import generate_shap_values
+import shap
 
 from .. import _hdf5 as h5
 from .. import _plot as plot
@@ -242,6 +243,9 @@ class ShapBasedExplainer:
             model=self.model, x_df=self.df_raw.loc[:, self.list_x],     # type: ignore
             n_jobs=self.cpu, tree_model=True, regression_model=True, boosting_model=True,
         )
+
+        # 从auto_shap库改为使用官方库shap
+        a = shap.TreeExplainer()
 
         # 添加索引、设置索引名
         self.df_shap.index = self.df_raw.index
