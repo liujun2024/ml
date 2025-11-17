@@ -10,6 +10,7 @@ from scipy.optimize import curve_fit
 from tkinter import Tk
 from tkinter.filedialog import askdirectory
 from pathlib import Path
+from dask.distributed import Client
 
 
 def askdir(initialdir='C:\\'):
@@ -30,6 +31,41 @@ def askdir(initialdir='C:\\'):
         raise ValueError('未知路径！')
     
     return Path(dir_project_)
+
+
+def split_data(data: pd.DataFrame, test_size: float, random_state: int, q: int, y: str=''):
+    """ 划分数据集，简单随机或者分层抽样
+
+    Parameters
+    ----------
+    data : pd.DataFrame，待划分的数据集
+    test_size : 测试集占比
+    random_state : 随机种子
+    q : 分层抽样时数据集划分的层数，q=1时为不分层抽样
+
+    Returns
+    -------
+    train_data : pd.DataFrame，训练集
+    test_data : pd.DataFrame，测试集
+
+    2025-11-17  v1  Create by LiuJun
+    """
+
+    from sklearn.model_selection import train_test_split
+
+    if q == 1:
+        # 不分层抽样
+        
+        return train_test_split(data, test_size=test_size, shuffle=True, random_state=random_state)
+
+    elif q > 1:
+        # 分层抽样
+        y_bins = pd.qcut(data[y], q=q, labels=False)
+
+        return train_test_split(data, test_size=test_size, shuffle=True, random_state=random_state, stratify=y_bins)
+
+    else:
+        raise ValueError('q must be a positive integer')
 
 
 def predict(model, x: np.ndarray, y: np.ndarray):
@@ -168,7 +204,59 @@ def get_best_x(series: pd.Series, percent_max: float):
     return index_closest
 
 
-def train_batch(model, X, y, param_name, param_range, cpu=1, cv=10):
+def train_batch(model, X, y, param_name, param_range, dask_client: Client | None = None, cpu=1, cv=10):
+    """ 改变模型的某个参数，进行批量训练，返回学习曲线数据
+    
+    Parameters
+    ----------
+    model : 模型
+    X : 自变量
+    y : 因变量
+    param_name : 待调参数名称
+    param_range : 待调参数范围
+    cv : 交叉验证次数
+    dask_client : Dask 客户端，如果为 None，则使用本地训练
+
+    Returns
+    -------
+    学习曲线数据
+    {
+        'train_mean': np.ndarray,
+        'train_std': np.ndarray,
+        'test_mean': np.ndarray,
+        'test_std': np.ndarray,
+    }
+
+    2025-11-17  v1  Create by LiuJun
+    """
+
+    if dask_client is None:
+        # 本地训练
+        return train_batch_local(
+            model=model, 
+            X=X, 
+            y=y, 
+            param_name=param_name, 
+            param_range=param_range, 
+            cpu=cpu, 
+            cv=cv,
+        )
+
+    else:
+        # 分布式训练
+        return train_batch_dask(
+            model=model,
+            X=X, 
+            y=y, 
+            param_name=param_name, 
+            param_range=param_range, 
+            dask_client=dask_client, 
+            cpu=cpu, 
+            cv=cv,
+        )
+    
+
+def train_batch_local(model, X, y, param_name, param_range, cpu=1, cv=10):
     """ 改变模型的某个参数，进行批量训练，返回学习曲线数据
     
     Parameters
@@ -215,6 +303,62 @@ def train_batch(model, X, y, param_name, param_range, cpu=1, cv=10):
     }
 
     return dict_score
+
+
+def _train_batch_worker(model, X, y, cv, param_name, param_range):
+    """在 Dask Worker 上执行的函数"""
+    
+    from sklearn.model_selection import validation_curve
+    
+    score_train, score_test = validation_curve(
+        estimator=model,
+        X=X,
+        y=y,
+        cv=cv,
+        n_jobs=-1,  # Worker 使用所有本地核心
+        param_name=param_name,
+        param_range=param_range,
+    )
+    
+    return score_train, score_test
+
+
+def train_batch_dask(model, X, y, param_name, param_range, dask_client: Client, cpu=1, cv=10):
+    
+    # 分布式训练
+    print(f"🚀 在 Dask Worker 上执行...")
+    
+    # 预加载数据到 Worker（如果还没加载过）
+    if not hasattr(dask_client, '_train_data_cached'):
+        X_future = dask_client.scatter(X, broadcast=True)
+        y_future = dask_client.scatter(y, broadcast=True)
+        dask_client._train_data_cached = (X_future, y_future)
+    else:
+        X_future, y_future = dask_client._train_data_cached
+
+    # 提交任务到 Worker
+    future = dask_client.submit(
+        _train_batch_worker,
+        model=model,
+        X=X_future,
+        y=y_future,
+        cv=cv,
+        param_name=param_name,
+        param_range=param_range,
+    )
+
+    # 获取结果
+    score_train, score_test = future.result()
+
+    # 计算平均值和标准差
+    dict_score = {
+        'train_mean': np.mean(score_train, axis=1),
+        'train_std': np.std(score_train, axis=1),
+        'test_mean': np.mean(score_test, axis=1),
+        'test_std': np.std(score_test, axis=1),
+    }
+
+    return dict_score 
 
 
 if __name__ == '__main__':

@@ -18,6 +18,8 @@ import matplotlib.cm as cm
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import validation_curve
 from auto_shap.auto_shap import generate_shap_values
+from dask.distributed import Client
+
 
 from .. import _hdf5 as h5
 from .. import _utils as utils
@@ -38,7 +40,7 @@ suffix_kw = 'rf'
 class RandomForest():
     """ 随机森林回归 """
 
-    def __init__(self, path_h5: str | Path, cv=5, cpu=4):
+    def __init__(self, path_h5: str | Path, cv=5, cpu=4, dask_client: Client | None = None):
 
         # 警告
         warnings.warn('此类将在后续版本中删除，请使用RF类代替！', DeprecationWarning)
@@ -165,6 +167,10 @@ class RandomForest():
         # 载入模型
         self.__load_model()
 
+        # 使用dask分布式客户端
+        self.dask_client = dask_client
+        self.use_dask = dask_client is not None
+
     def __init_dir(self):
         """ 初始化目录 """
 
@@ -207,9 +213,19 @@ class RandomForest():
         # 预测训练集和测试集
         self.__predict()
 
-    def fit(self):
+    # def fit(self):
+    #     """ 改造后的fit方法，支持分布式 """
 
-        print(f'██ Training... | {self.filename} | {suffix_kw} | N: {self.y_train.shape[0]}/{self.y_test.shape[0]} | {self.cv}-fold CV | CPU: {self.cpu}')
+    #     print(f'██ Training... | {self.filename} | {suffix_kw} | N: {self.y_train.shape[0]}/{self.y_test.shape[0]} | {self.cv}-fold CV | CPU: {self.cpu}')
+        
+    #     if self.use_dask:
+    #         # 使用分布式训练
+    #         self.__fit_distributed()
+    #     else:
+    #         # 使用本地训练
+    #         self.__fit_local()
+
+    def fit(self):
         
         """ 依次对各个参数进行优化 """
         list_p = list(self.dict_params_init.keys())
@@ -327,6 +343,112 @@ class RandomForest():
         # 保存模型表现图片
         self.plot_performance()
 
+    def __fit_distributed(self):
+        """ 分布式训练 """
+
+        print(f'使用 Dask 分布式训练')
+        
+        # 预加载数据到所有 Worker
+        print("📤 预加载数据到 Worker...")
+        x_train_future = self.dask_client.scatter(self.x_train, broadcast=True)
+        y_train_future = self.dask_client.scatter(self.y_train, broadcast=True)
+        
+        """ 依次对各个参数进行优化 """
+        list_p = list(self.dict_params_init.keys())
+
+        for i, self.current_p in enumerate(list_p):
+
+            # 参数
+            self.todo_p = self.dict_params_init[self.current_p]
+            if not isinstance(self.todo_p, (list, np.ndarray)):
+                # 参数储存至字典
+                self.dict_params_best[self.current_p] = self.todo_p
+                continue
+
+            """ 学习曲线/交叉验证 """
+            # 准备用于创建模型的参数
+            self.dict_params_j = self.dict_params_best.copy()
+            self.dict_params_j.update({self.current_p: self.todo_p[0]})
+            self.dict_params_j.update({k: self.dict_params_overfitting[k] for k in list_p if k not in self.dict_params_j.keys()})
+
+            # 准备用于print的参数
+            self.dict_params_j2 = self.dict_params_j.copy()
+            self.dict_params_j2[self.current_p] = self.todo_p
+
+            print(f'调参({i+1}/{len(list_p)}): {self.current_p} | {self.dict_params_j2}')
+            
+            # 学习曲线调参（分布式版本）
+            score = self.__tune_curve_distributed(x_train_future, y_train_future)
+
+            # 交叉验证得分存入pd.DataFrame
+            df_score = pd.DataFrame(data=score, index=self.todo_p)
+
+            # 最优参数存入字典
+            if self.current_p in self.list_params_for_fitting:
+
+                # 寻找第1次学习曲线中的max_score，将其归一化
+                df_score['test_mean_normalized'] = df_score['test_mean'] / df_score['test_mean'].max()
+
+                # 判断阈值在哪两个score中间
+                index_insert = find_first_index(df_score['test_mean_normalized'].tolist(), self.percent_max)
+
+                # 阈值所在区间的score范围
+                score_left = df_score.index[index_insert - 1]
+                score_right = df_score.index[index_insert]
+
+                # 在score_left和score_right之间，均匀插入5个整数
+                self.todo_p = np.unique(np.linspace(score_left, score_right, 7, dtype=int, endpoint=True)[1:-1])
+
+                self.dict_params_j2[self.current_p] = self.todo_p
+                print(f'调参({i+1}/{len(list_p)}): {self.current_p} | {self.dict_params_j2}')
+                
+                # 第2次学习曲线调参
+                score2 = self.__tune_curve_distributed(x_train_future, y_train_future)
+
+                # 交叉验证得分存入pd.DataFrame
+                df_score2 = pd.DataFrame(data=score2, index=self.todo_p)
+
+                # 合并第1次和第2次学习曲线的结果
+                df_score = pd.concat([df_score.iloc[:, :-1], df_score2], axis=0)
+                df_score = df_score[~df_score.index.duplicated(keep='first')]
+                df_score.sort_index(inplace=True, ascending=True)
+                df_score['test_mean_normalized'] = df_score['test_mean'] / df_score['test_mean'].max()
+
+                # 寻找与self.percent_max最接近的score
+                p_final = (df_score['test_mean_normalized'] - self.percent_max).abs().idxmin()
+                self.dict_params_best[self.current_p] = p_final
+
+            else:
+                self.dict_params_best[self.current_p] = df_score['test_mean'].idxmax()
+            
+            self.dict_params_all[self.current_p] = df_score
+
+        """ 生成最优模型，并预测训练集和测试集 """
+        # 使用最优参数进行模型初始化
+        self.model = self.__create_model(dict_param=self.dict_params_best)
+        
+        # 拟合
+        self.model.fit(X=self.x_train, y=self.y_train)
+
+        """ 保存模型 """
+        print('模型保存...', end=' ')
+        sio.dump(obj=self.model, file=self.path_model, compression=zipfile.ZIP_LZMA, compresslevel=3)
+        print('完成！')
+
+        # 预测训练集和测试集
+        self.__predict()
+
+        """ 保存训练超参数和模型表型 """
+        print('学习曲线数据保存...', end=' ')
+        self.h5rw.write_hyperparameters(model=self, group=suffix_kw)
+        print('完成！')
+
+        # 保存学习曲线图片
+        self.plot_lc()
+
+        # 保存模型表现图片
+        self.plot_performance()
+
     def __tune_curve(self):
         """ 获取学习曲线 """
 
@@ -341,6 +463,7 @@ class RandomForest():
             cpu=self.cpu,
             param_name=self.current_p,
             param_range=self.todo_p,    # # v0.1e中更改
+            dask_client=self.dask_client, 
         )
 
         # # 使用validation_curve获取学习曲线数据
@@ -364,6 +487,26 @@ class RandomForest():
         # }
 
         # return dict_score
+
+    def __tune_curve_distributed(self, x_train_future, y_train_future):
+        """分布式版本的学习曲线获取"""
+
+        # 创建模型
+        model = self.__create_model(dict_param=self.dict_params_j)
+
+        # 在远程 Worker 执行训练
+        future = self.dask_client.submit(
+            self.__train_batch_on_worker,
+            model=model,
+            x_train=x_train_future,
+            y_train=y_train_future,
+            cv=self.cv,
+            param_name=self.current_p,
+            param_range=self.todo_p,
+        )
+
+        # 等待结果并返回
+        return future.result()
 
     def __create_model(self, dict_param: dict):
         """ 根据参数创建模型 """
