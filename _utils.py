@@ -305,29 +305,30 @@ def train_batch_local(model, X, y, param_name, param_range, cpu=1, cv=10):
     return dict_score
 
 
-def train_batch_worker(model, X, y, cv, param_name, param_range):
-    """在 Dask Worker 上执行的函数"""
-
-    from sklearn.model_selection import validation_curve
-    
-    score_train, score_test = validation_curve(
-        estimator=model,
-        X=X,
-        y=y,
-        cv=cv,
-        n_jobs=-1,  # Worker 使用所有本地核心
-        param_name=param_name,
-        param_range=param_range,
-    )
-    
-    return score_train, score_test
-
-
 def train_batch_dask(model, X, y, param_name, param_range, dask_client: Client, cpu=1, cv=10):
     
     # 分布式训练
     print(f"🚀 在 Dask Worker 上执行...")
     
+
+    def worker_task(X, y):
+        """在 Dask Worker 上执行的函数"""
+
+        from sklearn.model_selection import validation_curve
+        
+        score_train, score_test = validation_curve(
+            estimator=model,
+            X=X,
+            y=y,
+            cv=cv,
+            n_jobs=-1,  # Worker 使用所有本地核心
+            param_name=param_name,
+            param_range=param_range,
+        )
+        
+        return score_train, score_test
+
+
     # 预加载数据到 Worker（如果还没加载过）
     if not hasattr(dask_client, '_train_data_cached'):
         X_future = dask_client.scatter(X, broadcast=True)
@@ -337,16 +338,7 @@ def train_batch_dask(model, X, y, param_name, param_range, dask_client: Client, 
         X_future, y_future = dask_client._train_data_cached
 
     # 提交任务到 Worker
-    future = dask_client.submit(
-        train_batch_worker,
-        model=model,
-        X=X_future,
-        y=y_future,
-        cv=cv,
-        param_name=param_name,
-        param_range=param_range,
-        pure=False,  # 禁用缓存
-    )
+    future = dask_client.submit(worker_task, X_future, y=y_future)
 
     # 获取结果
     score_train, score_test = future.result()
