@@ -355,6 +355,144 @@ def train_batch_dask(model, X, y, param_name, param_range, dask_client: Client, 
     return dict_score 
 
 
+def calculate_shap_local(model, X: pd.DataFrame, cpu=1):
+    """ 计算SHAP值
+     
+    Parameters
+    ----------
+    model : 模型
+    X : 自变量
+    cpu : 并行计算的CPU核心数，基于joblib
+
+    Returns
+    -------
+    SHAP值 : pd.DataFrame
+    SHAP期望值 ： float
+    SHAP全局绝对平均值：pd.Series
+
+    2025-11-18  v1  Create by LiuJun
+    """
+
+    import shap
+    from joblib import Parallel, delayed
+
+    # explainer
+    explainer = shap.TreeExplainer(model)
+
+    # cal the batch size
+    batch_size = (X.shape[0] + cpu - 1) // cpu
+
+    # split the data into batches
+    batches = [X.iloc[i:i+batch_size] for i in range(0, X.shape[0], batch_size)]
+
+    # cal shap values in batches
+    results = Parallel(n_jobs=cpu)(
+        delayed(explainer.shap_values)(batch) for batch in batches
+    )
+
+    # concatenate the results and store in a DataFrame
+    df_shap = pd.DataFrame(
+        data=np.concatenate(results, axis=0),   # type: ignore
+        columns=X.columns,
+        index=X.index,
+    )
+
+    # cal the shap expected value
+    shap_expected_value = explainer.expected_value
+    if shap_expected_value is not None and len(shap_expected_value) == 1:    # type: ignore
+        shap_expected_value = shap_expected_value[0]    # type: ignore
+    
+    # cal the shap global absolute average value
+    shap_global_abs_avg = df_shap.abs().mean().sort_values(ascending=False)
+    shap_global_abs_avg.index.name = 'feature'
+    shap_global_abs_avg.name = 'shap_value'
+
+    # return the shap values
+    return df_shap, shap_expected_value, shap_global_abs_avg
+
+
+def calculate_shap_dask(model, X: pd.DataFrame, dask_client: Client, cpu: int=1):
+    """ 使用Dask分布式计算SHAP值
+     
+    Parameters
+    ----------
+    model : 模型
+    X : 自变量
+    dask_client : Dask客户端（必须提供）
+    cpu : 参数保留，实际使用Dask工作节点数
+
+    Returns
+    -------
+    SHAP值 : pd.DataFrame
+    SHAP期望值 ： float
+    SHAP全局绝对平均值：pd.Series
+    """
+
+    import shap
+    import pandas as pd
+    import numpy as np
+
+    def calculate_shap_batch(batch_data, ml_model):
+        """ 在工作节点上计算SHAP值的函数 """
+
+        # explainer
+        batch_explainer = shap.TreeExplainer(ml_model)
+        
+        # cal shap values
+        result = batch_explainer.shap_values(batch_data)
+        
+        # return the shap values
+        return result
+
+    # explainer
+    explainer = shap.TreeExplainer(model)
+
+    # cal the number of workers
+    n_workers = len(dask_client.nthreads())  # type: ignore
+    n_batches = min(cpu, n_workers)
+    print('nworkers:', n_workers, 'n_batches:', n_batches)
+
+    # cal the batch size
+    batch_size = (X.shape[0] + n_batches - 1) // n_batches
+
+    # split the data into batches
+    batches = [X.iloc[i:i+batch_size] for i in range(0, X.shape[0], batch_size)]
+
+    # broadcast the model to all workers
+    model_future = dask_client.scatter(model, broadcast=True)
+
+    # submit tasks to workers
+    futures = []
+    for i, batch in enumerate(batches):
+        print(f"🚀 正在提交第 {i+1} 个任务...", batch.shape)
+        batch_future = dask_client.scatter(batch)
+        future = dask_client.submit(calculate_shap_batch, batch_future, model_future, key=f"shap_batch_{i}")
+        futures.append(future)
+
+    # get the results
+    results = dask_client.gather(futures)
+
+    # concatenate the results and store in a DataFrame
+    df_shap = pd.DataFrame(
+        data=np.concatenate(results, axis=0),   # type: ignore
+        columns=X.columns,
+        index=X.index,
+    )
+
+    # cal the shap expected value
+    shap_expected_value = explainer.expected_value
+    if shap_expected_value is not None and len(shap_expected_value) == 1:    # type: ignore
+        shap_expected_value = shap_expected_value[0]    # type: ignore
+
+    # cal the shap global absolute average value
+    shap_global_abs_avg = df_shap.abs().mean().sort_values(ascending=False)
+    shap_global_abs_avg.index.name = 'feature'
+    shap_global_abs_avg.name = 'shap_value'
+
+    # return the shap values
+    return df_shap, shap_expected_value, shap_global_abs_avg
+
+
 if __name__ == '__main__':
 
     pass
