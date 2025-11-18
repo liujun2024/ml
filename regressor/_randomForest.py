@@ -357,7 +357,7 @@ class RandomForest():
             cpu=self.cpu,
             param_name=self.current_p,
             param_range=self.todo_p,    # # v0.1e中更改
-            dask_client=self.dask_client, 
+            dask_client_address=self.dask_client, 
         )
 
     def __create_model(self, dict_param: dict):
@@ -775,10 +775,12 @@ class RandomForest():
 class RF(ShapBasedExplainer):
     """ 随机森林回归模型, 继承自ShapBasedExplainer, 用于替代RandomForest类 """
 
-    def __init__(self, path_h5: Path, cv: int = 5, cpu: int = 1):
+    from dask.distributed import Client
+
+    def __init__(self, path_h5: Path, cv: int = 5):
         """ 初始化 """
 
-        super().__init__(path_h5, cv, cpu)
+        super().__init__(path_h5, cv)
 
         # 模型简称
         self.abbrname = 'rf'
@@ -829,7 +831,7 @@ class RF(ShapBasedExplainer):
             bootstrap=True,  # https://stackoverflow.com/questions/40131893/random-forest-with-bootstrap-false-in-scikit-learn-python
             # If bootstrap is True, the number of samples to draw from X to train each base estimator， 默认最高复杂度
             oob_score=False,  #
-            n_jobs=self.cpu,  #
+            # n_jobs=self.cpu,  #
             random_state=42,  #
             verbose=0,  # 控制台输出信息丰富程度
             warm_start=False,  #
@@ -839,7 +841,7 @@ class RF(ShapBasedExplainer):
 
         return model
 
-    def __tune_curve(self):
+    def __tune_curve(self, cpu: int = 1, dask_client_address: str | None = None):
         """ 获取学习曲线 """
 
         # 创建模型
@@ -850,9 +852,10 @@ class RF(ShapBasedExplainer):
             X=self.x_train,
             y=self.y_train,
             cv=self.cv,
-            cpu=self.cpu,
+            cpu=cpu,
             param_name=self.current_p,
             param_range=self.todo_p,
+            dask_client_address=dask_client_address,
         )
 
     def plot_lc(self, show=False):
@@ -912,10 +915,10 @@ class RF(ShapBasedExplainer):
         else:
             plt.close()
 
-    def fit(self):
+    def fit(self, cpu: int = 1, dask_client_address: str | None = None):
 
         print(f'██ Training... | {self.filename} | {suffix_kw} | N: {self.y_train.shape[0]}/{self.y_test.shape[0]} | {self.cv}-fold CV | CPU: {self.cpu}')
-        
+
         """ 依次对各个参数进行优化 """
         list_p = list(self.dict_params_init.keys())
 
@@ -941,7 +944,7 @@ class RF(ShapBasedExplainer):
             print(f'调参({i+1}/{len(list_p)}): {self.current_p} | {self.dict_params_j2}')
             
             # 学习曲线调参
-            score = self.__tune_curve()
+            score = self.__tune_curve(cpu=cpu, dask_client_address=dask_client_address)
 
             # 交叉验证得分存入pd.DataFrame
             df_score = pd.DataFrame(data=score, index=self.todo_p)
@@ -972,7 +975,7 @@ class RF(ShapBasedExplainer):
                 print(f'调参({i+1}/{len(list_p)}): {self.current_p} | {self.dict_params_j2}')
                 
                 # 第2次学习曲线调参
-                score2 = self.__tune_curve()
+                score2 = self.__tune_curve(cpu=cpu, dask_client_address=dask_client_address)
 
                 # 交叉验证得分存入pd.DataFrame
                 df_score2 = pd.DataFrame(data=score2, index=self.todo_p)

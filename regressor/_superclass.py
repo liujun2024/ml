@@ -224,6 +224,50 @@ class ShapBasedExplainer:
             index=self.df_test.index,
             )
     
+    def calculate_shap(self, cpu: int | None = None, overwrite=False, dask_client_address: str | None = None):
+        """ 计算shap值, 用于替换auto_shap库 
+        
+        2025-11-18  v1  Created by LiuJun
+        """
+
+        print('计算SHAP值、保存、作图...', end=' ')
+
+        # 判断shap值是否已经存在
+        if self.check_shap() and not overwrite:
+            print('已存在，跳过！')
+            return
+
+        # 并行处理的cpu核心数
+        if cpu is not None:
+            self.cpu_shap = cpu
+        
+        # 判断使用使用dask分布式计算
+        if dask_client_address is not None:
+            from dask.distributed import Client
+            client = Client(address=dask_client_address)
+
+            self.df_shap, self.float_shap_expected_value, self.series_global_shap = utils.calculate_shap_dask(
+                model=self.model, X=self.df_raw.loc[:, self.list_x],     # type: ignore
+                dask_client=client, cpu=self.cpu_shap,
+            )
+        
+        else:
+            self.df_shap, self.float_shap_expected_value, self.series_global_shap = utils.calculate_shap_local(
+                model=self.model, X=self.df_raw.loc[:, self.list_x],     # type: ignore
+                cpu=self.cpu_shap,
+            )
+
+        # 保存SHAP值
+        self.h5rw.write_shap(model=self, group=self.abbrname)
+
+        # 保存shap值排序图
+        self.plot_shap_global()
+
+        # shap dependence图
+        self.plot_shap_dependence()
+
+        print('完成！')
+
     def cal_shap(self, cpu: int | None = None, overwrite=False):
         """ 计算SHAP值 """
 
@@ -243,9 +287,6 @@ class ShapBasedExplainer:
             model=self.model, x_df=self.df_raw.loc[:, self.list_x],     # type: ignore
             n_jobs=self.cpu, tree_model=True, regression_model=True, boosting_model=True,
         )
-
-        # 从auto_shap库改为使用官方库shap
-        a = shap.TreeExplainer()
 
         # 添加索引、设置索引名
         self.df_shap.index = self.df_raw.index

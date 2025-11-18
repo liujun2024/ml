@@ -204,7 +204,7 @@ def get_best_x(series: pd.Series, percent_max: float):
     return index_closest
 
 
-def train_batch(model, X, y, param_name, param_range, dask_client: Client | None = None, cpu=1, cv=10):
+def train_batch(model, X, y, param_name, param_range, dask_client_address: str | None = None, cpu=1, cv=10):
     """ 改变模型的某个参数，进行批量训练，返回学习曲线数据
     
     Parameters
@@ -229,31 +229,84 @@ def train_batch(model, X, y, param_name, param_range, dask_client: Client | None
 
     2025-11-17  v1  Create by LiuJun
     """
+    
+    from sklearn.model_selection import validation_curve
 
-    if dask_client is None:
-        # 本地训练
-        return train_batch_local(
-            model=model, 
+    # def worker_task(model_serialized, X, y):
+    #     """在 Dask Worker 上执行的函数"""
+        
+    #     score_train, score_test = validation_curve(
+    #         estimator=model_serialized,
+    #         X=X,
+    #         y=y,
+    #         cv=cv,
+    #         n_jobs=cpu,  # Worker 使用所有本地核心
+    #         param_name=param_name,
+    #         param_range=param_range,
+    #     )
+        
+    #     return score_train, score_test
+
+    # 本地训练
+    if dask_client_address is None:
+
+        # 使用validation_curve获取学习曲线数据
+        score_train, score_test = validation_curve(
+            estimator=model,
             X=X, 
-            y=y, 
-            param_name=param_name, 
-            param_range=param_range, 
-            cpu=cpu, 
+            y=y,
             cv=cv,
+            n_jobs=cpu,
+            param_name=param_name, 
+            param_range=param_range,
         )
 
+    # 分布式训练
     else:
-        # 分布式训练
-        return train_batch_dask(
-            model=model,
-            X=X, 
-            y=y, 
-            param_name=param_name, 
-            param_range=param_range, 
-            dask_client=dask_client, 
-            cpu=cpu, 
-            cv=cv,
-        )
+
+        # 设置joblib使用dask后端
+        from joblib import parallel_backend
+
+        # 创建 Dask 客户端
+        dask_client = Client(dask_client_address)
+        print(f"🚀 在 Dask Worker 上执行...", dask_client)
+
+        with parallel_backend('dask'):
+
+            with dask_client.as_current():
+                score_train, score_test = validation_curve(
+                    estimator=model,
+                    X=X,
+                    y=y,
+                    cv=cv,
+                    n_jobs=cpu,
+                    param_name=param_name,
+                    param_range=param_range,
+                )
+
+            # 关闭 Dask 客户端
+            dask_client.close()
+        
+        # 预加载数据到 Worker
+        # model_serialized = dask_client.scatter(model, broadcast=True)
+        # X_future = dask_client.scatter(X, broadcast=True)
+        # y_future = dask_client.scatter(y, broadcast=True)
+
+        # # 提交任务到 Worker
+        # future = dask_client.submit(worker_task, model_serialized, X_future, y_future)
+
+        # 获取结果
+        # score_train, score_test = future.result()
+
+    # 计算平均值和标准差
+    dict_score = {
+        'train_mean': np.mean(score_train, axis=1),
+        'train_std': np.std(score_train, axis=1),
+        'test_mean': np.mean(score_test, axis=1),
+        'test_std': np.std(score_test, axis=1),
+    }
+
+    return dict_score
     
 
 def train_batch_local(model, X, y, param_name, param_range, cpu=1, cv=10):
@@ -321,7 +374,7 @@ def train_batch_dask(model, X, y, param_name, param_range, dask_client: Client, 
             X=X,
             y=y,
             cv=cv,
-            n_jobs=cpu,  # Worker 使用所有本地核心
+            # n_jobs=cpu,  # Worker 使用所有本地核心
             param_name=param_name,
             param_range=param_range,
         )
@@ -450,7 +503,7 @@ def calculate_shap_dask(model, X: pd.DataFrame, dask_client: Client, cpu: int=1)
     # cal the number of workers
     n_workers = len(dask_client.nthreads())  # type: ignore
     n_batches = min(cpu, n_workers)
-    print('nworkers:', n_workers, 'n_batches:', n_batches)
+    print('Available dask nworkers:', n_workers, ', n_batches:', n_batches)
 
     # cal the batch size
     batch_size = (X.shape[0] + n_batches - 1) // n_batches
