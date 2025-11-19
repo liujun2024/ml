@@ -801,6 +801,338 @@ def plotShapRanking(
         plt.close()
 
 
+# def beeswarm_base(
+#         data_raw: pd.DataFrame, 
+#         data_shap: pd.DataFrame, 
+#         ax: Axes,
+#         show_colorbar: bool = True,
+#         show: bool = False,
+#     ):
+#     """ 
+#     仅绘制蜂群beeswarm图
+
+#     Parameters
+#     ----------
+#     data_raw : pd.DataFrame， 原始数据
+#     data_shap : pd.DataFrame， shap值
+#     ax : Axes， 画布对象
+#     # head : int， 绘制重要性排序的前几个特征
+    
+#     2025-11-19  v1  从plot_beeswarm中提取beeswarm图绘制代码，并修改为仅绘制beeswarm图
+#     """
+    
+#     # from shap.plots._beeswarm import summary_legacy
+#     # from shap.plots.colors import red_blue
+
+#     # from ._plot_beeswarm import summary_legacy
+#     # from ._colors import red_blue
+
+#     print('11')
+
+#     # 计算绝对值均值
+#     # df_shap_global = data_shap.abs().mean(axis=0).sort_values(ascending=True).tail(head)
+
+#     # 前head个特征列表
+#     # list_head = df_shap_global.index.tolist()
+
+#     # print('df_shap_global:\n', df_shap_global)
+
+#     # 准备画布
+#     # fig, (ax1, ax2) = plt.subplots(figsize=figsize, ncols=2, nrows=1, dpi=100, sharey=False)
+
+#     # 特征重要性柱状图
+#     # df_shap_global.plot.barh(width=0.7, color='#1e87e4', ax=ax1, zorder=10)
+
+#     # 网格线
+#     # ax1.grid(visible=True, which='major', axis='y', color="#cccccc", lw=0.5, dashes=(1, 4), zorder=0)
+
+#     # 获取当前的 Axes 对象，并将 scatter 图形对象添加到子图中
+#     summary_legacy(
+#         df_shap=data_shap, 
+#         df_raw=data_raw, 
+#         # feature_names=list_head,
+#         # plot_type='dot',
+#         # show=False,
+#         ax=ax,
+#         show_colorbar=show_colorbar,
+#     )
+
+#     # scatter_path_collection = ax_.collections[0]
+
+#     # 将散点图的PathCollection对象添加到子图中
+#     # ax.add_collection(scatter_path_collection)
+
+#     ax.set_xlabel('SHAP value', verticalalignment='center_baseline', fontsize=18)
+
+#     # # 全国统一模型前10
+#     # ax[5].barh(['SO2', 'CO', 'NO2', '农田', 'O3'][::-1], [4.69, 2.37, 1.56, 1.48, 1.47][::-1], height=0.6)
+#     # ax[5].set_title('全国统一模型', fontsize=20)
+#     # ax1.set_xlabel('mean(|SHAP value|)', verticalalignment='center_baseline', fontsize=18)
+#     # ax.set_xlabel('$\overline{\mathrm{|SHAP\;value|}}$', verticalalignment='center_baseline', fontsize=12)
+
+#     # ax[5].set_axis_off()
+
+#     # ax.set_yticklabels([])
+
+#     # ax1.set_title('Importance plot')
+#     # ax2.set_title('Summary plot')
+
+#     # ax.set_ylim(ax1.get_ylim())
+
+#     # y_ticklabel = ax1.get_yticklabels()
+#     # ax1.set_yticklabels(y_ticklabel, fontsize=18)
+
+#     # x1_ticklabel = ax1.get_xticklabels()
+#     # ax1.set_xticklabels(x1_ticklabel, fontsize=18)
+
+#     # x2_ticklabel = ax.get_xticklabels()
+#     # ax.set_xticklabels(x2_ticklabel, fontsize=18)
+
+#     # colorbar
+#     # ax_cbar = ax1.inset_axes([1, 0, 0.2, 1])
+
+#     # ax_cbar = ax.inset_axes(bounds=(1.02, 0, 0.02, 1))
+
+#     # m = cm.ScalarMappable(cmap=red_blue)
+#     # m.set_array([0, 1])
+#     # cb = plt.colorbar(m, cax=ax_cbar, extend='neither', ticks=[0.015, 0.985])
+#     # cb.set_ticklabels(['low', 'high'])
+#     # cb.outline.set_visible(False)
+#     # cb.ax.tick_params(labelsize=16, length=0)
+
+#     # # colorbar标题
+#     # # cb_d.ax.set_title(data_.columns[-1], fontsize=10)
+
+#     # # cb = pl.colorbar(m, ax=pl.gca(), ticks=[0, 1], aspect=80)
+#     # # # cb.set_ticklabels([labels['FEATURE_VALUE_LOW'], labels['FEATURE_VALUE_HIGH']])
+#     # cb.set_label('Feature value', size='medium', labelpad=0, va='bottom')
+#     # # cb.set_alpha(1)
+
+
+def shap_interaction_summary(
+        arr3d_shap_interaction: np.ndarray, 
+        df_raw: pd.DataFrame, 
+        list_x: list,
+        dpi: int = 100,
+        path_png: Path | None = None,
+        show: bool = False,
+        ):
+    """
+    绘制shap交互作用图
+    
+    Parameters
+    ----------
+    arr3d_shap_interaction : np.ndarray， shap交互作用数组(n_samples, n_features, n_features)
+    df_raw : pd.DataFrame， 原始数据
+    list_x : list， 作图顺序
+    dpi : int， 图片分辨率
+    path_png : Path | None， 图片保存路径
+    show : bool， 是否显示图片
+
+    2025-11-19  v1  Created by LiuJun
+    """
+
+    """ 依次提取特征i与其它个特征的交互作用 """
+    dict_ij = {}
+    for i in range(len(list_x)):
+        dict_i = {}
+        for j in range(len(list_x)):
+            dict_i[list_x[j]] = arr3d_shap_interaction[:, i, j]
+
+        # 字典转DataFrame
+        df_i = pd.DataFrame(dict_i)
+
+        # 设置索引
+        df_i.index = df_raw.index
+
+        # columns重新排序
+        df_i = df_i.loc[:, list_x]
+
+        # 保存到字典中
+        dict_ij[list_x[i]] = df_i
+
+    # 设置画布
+    fig, axs = plt.subplots(figsize=(16, 9), dpi=dpi, nrows=1, ncols=len(list_x), layout='constrained')
+    axs : list[Axes] = axs.flatten()    # type: ignore
+
+    # 依次绘制每个特征与其它特征的交互作用
+    for i, d in enumerate(list_x):
+
+        beeswarm_base(
+            df_raw=df_raw.loc[:, list_x],
+            df_shap=dict_ij[d],
+            ax=axs[i],
+            xlabel='',
+            show_colorbar=True if i == len(list_x) - 1 else False,
+            show_yticklabels=True if i == 0 else False,
+            title=d,
+        )
+
+    fig.supxlabel('SHAP interaction value')
+
+    # 保存图片
+    if path_png is not None:
+        plt.savefig(path_png, dpi=dpi)
+    
+    if show:
+        plt.show()
+
+
+
+def beeswarm_base(
+        df_shap: pd.DataFrame, 
+        df_raw: pd.DataFrame, 
+        ax: Axes,
+        alpha: float = 1.0, 
+        title: str = 'title',
+        xlabel: str = 'xlabel',
+        show_colorbar: bool = True,
+        show_outline: bool = False,
+        show_yticklabels: bool = True,
+    ):
+
+    """ 
+    绘制beeswarm图，基于shap.plots._beeswarm中提取的summary_legacy
+
+    Parameters
+    ----------
+    df_shap : pd.DataFrame， shap值
+    df_raw : pd.DataFrame， 原始数据
+    ax : Axes， 画布对象
+    alpha : float， marker透明度
+    title : str， 标题
+    xlabel : str， x轴标签
+    show_colorbar : bool， 是否显示colorbar
+    show_outline : bool， 是否显示边框
+    show_yticklabels : bool， 是否显示y轴刻度标签
+
+    2025-11-19  v1  Created by LiuJun
+    """
+
+    from shap.plots.colors import red_blue
+
+    # 断言df_shap和df_raw的shape相同
+    assert df_shap.shape == df_raw.shape, "df_shap和df_raw的shape必须相同！"
+
+    # 断言df_shap和df_raw的列名相同
+    assert df_shap.columns.tolist() == df_raw.columns.tolist(), "df_shap和df_raw的列名必须相同！"
+
+    # 逆序columns
+    df_shap = df_shap[df_shap.columns[::-1]].copy()
+    df_raw = df_raw[df_raw.columns[::-1]].copy()
+
+    # x=0的垂线
+    ax.axvline(x=0, color="silver", zorder=-1, ls='--', lw=1.2)
+
+    # 绘制每个特征的beeswarm图
+    for pos, i in enumerate(df_shap.columns):
+
+        # 水平线
+        ax.axhline(y=pos, color="#cccccc", lw=0.5, dashes=(4, 2), zorder=-1)
+        
+        # 提取当前特征的shap值和原始值
+        shaps = df_shap.loc[:, i]
+        values = df_raw.loc[:, i]
+
+        inds = np.arange(len(shaps))
+        np.random.shuffle(inds)
+        values = values.iloc[inds].to_numpy()
+        shaps = shaps.iloc[inds].to_numpy()
+
+        N = len(shaps)
+
+        nbins = 100
+        quant = np.round(nbins * (shaps - np.min(shaps)) / (np.max(shaps) - np.min(shaps) + 1e-8))
+        inds = np.argsort(quant + np.random.randn(N) * 1e-6)
+
+        layer = 0
+        last_bin = -1
+        ys = np.zeros(N)
+        for ind in inds:
+            if quant[ind] != last_bin:
+                layer = 0
+            ys[ind] = np.ceil(layer / 2) * ((layer % 2) * 2 - 1)
+            layer += 1
+            last_bin = quant[ind]
+        
+        ys *= 0.9 * (0.4 / np.max(ys + 1))
+
+        # 筛选特征值范围: 5th-95th
+        vmin = np.nanpercentile(values, 5)
+        vmax = np.nanpercentile(values, 95)
+        if vmin == vmax:
+            vmin = np.nanpercentile(values, 1)
+            vmax = np.nanpercentile(values, 99)
+            if vmin == vmax:
+                vmin = np.min(values)
+                vmax = np.max(values)
+        
+        if vmin > vmax: # fixes rare numerical precision issues
+            vmin = vmax
+
+        # 绘制nan值的beeswarm图为灰色
+        nan_mask = np.isnan(values)
+        ax.scatter(shaps[nan_mask], pos + ys[nan_mask], color="#777777",
+                    s=16, alpha=alpha, linewidth=0.05,
+                    zorder=3, rasterized=len(shaps) > 500,
+                    marker='$\u25EF$',
+                    )
+
+        # plot the non-nan values colored by the trimmed feature value
+        cvals = values[np.invert(nan_mask)].astype(np.float64)
+        cvals_imp = cvals.copy()
+        cvals_imp[np.isnan(cvals)] = (vmin + vmax) / 2.0
+        cvals[cvals_imp > vmax] = vmax
+        cvals[cvals_imp < vmin] = vmin
+        
+        # 绘制非nan值的beeswarm图
+        ax.scatter(shaps[np.invert(nan_mask)], pos + ys[np.invert(nan_mask)],
+                    cmap=red_blue, vmin=vmin, vmax=vmax, s=16,
+                    c=cvals, alpha=alpha, linewidth=0.05,
+                    zorder=3, rasterized=len(shaps) > 500,
+                    marker='$\u25EF$',
+                    )
+        
+    # 设置标题
+    ax.set_title(title)
+
+    # 设置x轴标签
+    ax.set_xlabel(xlabel)
+
+    # 设置y轴刻度标签
+    if show_yticklabels:
+        ax.set_yticks(ticks=range(len(df_shap.columns)), labels=df_shap.columns.tolist())
+    else:
+        ax.set_yticklabels([])
+
+    # 隐藏边框
+    if not show_outline:
+        for i in ['top', 'right', 'left']:
+            ax.spines[i].set_visible(False)
+        
+        # 隐藏y轴刻度
+        ax.yaxis.set_ticks_position('none')
+
+    # ax.tick_params('y', length=20, width=0.5, which='major')
+
+    # y轴范围
+    ax.set_ylim(-1, df_shap.shape[1])
+
+    # 绘制colorbar
+    if show_colorbar:
+
+        ax_cbar = ax.inset_axes(bounds=(1.05, 0, 0.03, 1))
+        m = cm.ScalarMappable(cmap=red_blue)
+        m.set_array([0, 1])
+        cb = plt.colorbar(m, cax=ax_cbar, extend='neither', ticks=[0.015, 0.985])
+        cb.set_ticklabels(['low', 'high'])
+        cb.outline.set_visible(False)
+        cb.ax.tick_params(labelsize=16, length=0)
+
+        # colorbar标题
+        cb.set_label('Normalized feature value', size='medium', labelpad=0, va='bottom')
+
+
 if __name__ == '__main__':
     
     """ 性能曲线测试 """

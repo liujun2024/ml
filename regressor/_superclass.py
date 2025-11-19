@@ -230,7 +230,7 @@ class ShapBasedExplainer:
         2025-11-18  v1  Created by LiuJun
         """
 
-        print('计算SHAP值、保存、作图...', end=' ')
+        print('计算SHAP值、保存、作图...', end=' ', flush=True)
 
         # 判断shap值是否已经存在
         if self.check_shap() and not overwrite:
@@ -265,6 +265,32 @@ class ShapBasedExplainer:
 
         # shap dependence图
         self.plot_shap_dependence()
+
+        print('完成！')
+
+    def calculate_shap_interaction(self, cpu: int=1, overwrite=False, dask_client_address: str | None = None):
+        """ 计算SHAP interaction values
+        
+        2025-11-18  v1  Created by LiuJun 
+        """
+
+        from ml._shap import cal_shap_interactions
+
+        print('计算SHAP interaction值、保存、作图...', end=' ', flush=True)
+
+        # 开始计算
+        # arr3d_shap_interaction = cal_shap_interactions(
+        dict_shap_interaction = cal_shap_interactions(
+            model=self.path_model,
+            data=self.df_raw.loc[:, self.list_x],
+            cpu=cpu,
+        )
+
+        # 保存
+        self.h5rw.write_shap_interaction(data=dict_shap_interaction, group=self.abbrname)
+
+        # 保存shap交互图
+        self.plot_shap_interaction()
 
         print('完成！')
 
@@ -317,6 +343,11 @@ class ShapBasedExplainer:
         """ 读取shap值 """
 
         self.df_shap, self.float_shap_expected_value, self.series_global_shap = self.h5rw.read_shap(group=self.abbrname)
+
+    def read_shap_interaction(self):
+        """ 读取shap_interactions值 """
+
+        self.arr3d_shap_interaction = self.h5rw.read_shap_interaction(group=self.abbrname)
 
     def plot_performance(self, show=False):
         """ 模型应用于测试集和验证集的表现 """
@@ -413,6 +444,77 @@ class ShapBasedExplainer:
             path_png=self.dir_png_shap / f'{self.filename}_shap_dependence_{self.abbrname}.png' if not show else None,
             dpi=dpi,
         )
+
+    def plot_shap_interaction(self, show=False, dpi : int = 100):
+        """ shap interaction作图 """
+
+        # from matplotlib.axes import Axes
+
+        # 如果self.arr3d_shap_interactions不存在则读取
+        if 'arr3d_shap_interaction' not in dir(self):
+            self.read_shap_interaction()
+
+        # 如果self.df_shap不存在则读取
+        if 'df_shap' not in dir(self):
+            self.read_shap()
+
+        # 提取根据重要性排序的特征列表
+        # print(self.series_global_shap)
+        list_x_sorted = self.series_global_shap.index.tolist()
+
+        # 作图
+        plot.shap_interaction_summary(
+            arr3d_shap_interaction=self.arr3d_shap_interaction,     # type: ignore
+            df_raw=self.df_raw,
+            list_x=list_x_sorted,
+            path_png=self.dir_png_shap / f'{self.filename}_shap_interaction_{self.abbrname}.png',
+            dpi=dpi,
+            show=show,
+        )
+
+        # """ 依次提取特征i与其它个特征的交互作用 """
+        # dict_ij = {}
+        # for i in range(len(list_x_sorted)):
+        #     dict_i = {}
+        #     for j in range(len(list_x_sorted)):
+        #         dict_i[list_x_sorted[j]] = self.arr3d_shap_interaction[:, i, j]
+
+        #     # 字典转DataFrame
+        #     df_i = pd.DataFrame(dict_i)
+        #     # df_i.columns = list_x_sorted
+        #     df_i.index = self.df_shap.index
+        #     print('df_i:\n', df_i)
+
+        #     dict_ij[list_x_sorted[i]] = df_i
+
+        # fig, axs = plt.subplots(figsize=(12, 8), dpi=dpi, nrows=1, ncols=len(list_x_sorted), layout='constrained')
+        # axs : list[Axes] = axs.flatten()
+        # print('axs:\n', axs)
+    
+        # for i, d in enumerate(list_x_sorted):
+
+        #     if i == len(list_x_sorted) - 1:
+        #         show_colorbar = True
+        #     else:
+        #         show_colorbar = False
+
+        #     plot.beeswarm_base(
+        #         df_raw=self.df_raw.loc[:, list_x_sorted],
+        #         df_shap=dict_ij[d],
+        #         ax=axs[i],
+        #         # head=5,
+        #         xlabel='',
+        #         show_colorbar=show_colorbar,
+        #         show_yticklabels=True if i == 0 else False,
+        #         title=d,
+        #     )
+
+        #     # axs[i].set_title(d)
+
+        # fig.supxlabel('SHAP interaction value')
+
+        # plt.show()
+
 
 
 if __name__ == '__main__':

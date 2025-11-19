@@ -294,7 +294,7 @@ class HDF5RW:
         # 关闭文件
         f.close()
 
-    def write_shap_interaction(self, data: np.ndarray, group: str):
+    def write_shap_interaction(self, data: dict, group: str):
         """ SHAP interaction values写入hdf5文件 
             data: 3维numpy数组，shape=(n_samples, n_features, n_features)
             group: h5文件中的组名
@@ -307,16 +307,53 @@ class HDF5RW:
 
         # 目标dataset名称
         ds_name = f'{group}/importance/shap_interaction'
+        ds_name_maie = f'{group}/importance/shap_maie'
 
         # 如果dataset已存在，则删除
         if ds_name in f:
             del f[ds_name]
+        
+        if ds_name_maie in f:
+            del f[ds_name_maie]
 
-        # 写入shap_values_df
-        f.create_dataset(name=ds_name, data=data, shuffle='T', compression='gzip', compression_opts=5)
+        # 写入shap_interaction_values, 3维数组
+        f.create_dataset(name=ds_name, data=data['arr3d_shap_interaction'], shuffle='T', compression='gzip', compression_opts=5)
+
+        # 写入绝对平均交互值MAIE
+        f.create_dataset(name=ds_name_maie, data=data['df_maie'].to_numpy(), shuffle='T', compression='gzip', compression_opts=5)
+
+        # 写入属性：features
+        f[ds_name].attrs['features'] = data['df_maie'].columns.to_numpy()
+        f[ds_name_maie].attrs['features'] = data['df_maie'].columns.to_numpy()
 
         # 关闭文件
         f.close()
+
+    def read_shap_interaction(self, group: str):
+        """ 读取SHAP interaction values 
+        
+        2025-11-18  v1  Created by LiuJun
+        """
+        
+        # shap数据位置
+        loc_shap_interaction = f'{group}/importance/shap_interaction'
+
+        # 打开h5文件
+        f = h5py.File(name=self.path_h5, mode='r')
+
+        if loc_shap_interaction not in f.keys():
+            f.close()
+            return False
+            # raise ValueError(f'{self.path_h5}中不存在{group}的shap数据！')
+
+        # 读取3维数组
+        arr3d_shap_interaction = f[loc_shap_interaction][()]    # type: ignore
+
+        # 关闭文件
+        f.close()
+
+        return arr3d_shap_interaction
+
 
 
 def raw2h5(df_train: pd.DataFrame, df_test: pd.DataFrame, labels: list, path_h5: Path, dict_attrs={}):

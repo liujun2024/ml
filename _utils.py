@@ -32,9 +32,29 @@ def askdir(initialdir='C:\\'):
     
     return Path(dir_project_)
 
+def split_df(data: pd.DataFrame, num: int):
+    """ 按顺序分割数据集 
+    
+    Parameters
+    ----------
+    data : pd.DataFrame，待划分的数据集
+    num : int，划分份数
 
-def split_data(data: pd.DataFrame, test_size: float, random_state: int, q: int, y: str=''):
-    """ 划分数据集，简单随机或者分层抽样
+    2025-11-18  v1  Create by LiuJun
+    """
+
+    # 计算每份的长度
+    chunk_size = data.shape[0] // num
+
+    # 按顺序分割数据集
+    list_df = [data.iloc[i:i+chunk_size] for i in range(0, data.shape[0], chunk_size)]
+
+    # 返回分割结果
+    return list_df
+
+
+def split_df_random(data: pd.DataFrame, test_size: float, random_state: int, q: int, y: str=''):
+    """ 划分数据集，简单随机或者分层随机抽样
 
     Parameters
     ----------
