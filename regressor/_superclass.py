@@ -15,9 +15,11 @@ import matplotlib.pyplot as plt
 from auto_shap.auto_shap import generate_shap_values
 import shap
 
-from .. import _hdf5 as h5
-from .. import _plot as plot
-from .. import _utils as utils
+from ml import hdf5, plot, utils
+
+# from .. import _hdf5 as h5
+# from .. import _plot as plot
+# from .. import _utils as utils
 
 
 class ShapBasedExplainer:
@@ -74,7 +76,7 @@ class ShapBasedExplainer:
         self.todo_p = None
 
         # 读取hdf5文件训练集和测试集数据
-        self.h5rw = h5.HDF5RW(path_h5=self.path_h5)
+        self.h5rw = hdf5.HDF5RW(path_h5=self.path_h5)
 
         # 赋值：训练集x
         self.x_train : np.ndarray = self.h5rw.x_train

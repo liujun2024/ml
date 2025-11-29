@@ -11,9 +11,10 @@ import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import validation_curve
 
-from .. import _hdf5 as h5
-from .. import _utils as utils
-from .. import _plot as plot
+# from .. import _hdf5 as h5
+from ml import hdf5, utils, plot
+# from .. import _utils as utils
+# from .. import _plot as plot
 
 # import _hdf5 as h5
 # import _utils as utils
@@ -60,7 +61,7 @@ class Linear:
         self.rmse_test = None
 
         # 读取hdf5文件训练集和测试集数据
-        self.h5rw = h5.HDF5RW(path_h5=self.path_h5)
+        self.h5rw = hdf5.HDF5RW(path_h5=self.path_h5)
 
         # 赋值：训练集x
         self.x_train = self.h5rw.x_train

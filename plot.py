@@ -19,7 +19,8 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 # import config as cfg
 # import ml_fitting as fit
 
-from . import _hdf5 as hdf5
+# from . import _hdf5 as hdf5
+from ml import hdf5
 # import _hdf5 as hdf5
 # from allin1.ml import HDF5RW
 

@@ -14,9 +14,10 @@ import matplotlib.pyplot as plt
 from sklearn.model_selection import validation_curve
 from auto_shap.auto_shap import generate_shap_values
 
-from .. import _utils as utils
-from .. import _hdf5 as h5
-from .. import _plot as plot
+from ml import utils, hdf5, plot
+# from .. import _utils as utils
+# from .. import _hdf5 as h5
+# from .. import _plot as plot
 from ._superclass import ShapBasedExplainer
 # import _utils as utils
 # import _hdf5 as h5
@@ -102,7 +103,7 @@ class ExtremeGradientBoosting:
         self.current_p = None
 
         # 读取hdf5文件训练集和测试集数据
-        self.h5rw = h5.HDF5RW(path_h5=self.path_h5)
+        self.h5rw = hdf5.HDF5RW(path_h5=self.path_h5)
 
         # 赋值：训练集x
         self.x_train = self.h5rw.x_train
