@@ -146,8 +146,11 @@ class ShapBasedExplainer:
         # shap值相关png存放目录
         self.dir_png_shap = self.dir_png / 'shap'
 
+        # raw数据分析存放目录
+        self.dir_png_raw = self.dir_png / 'raw'
+
         # 如果目录不存在，则创建目录
-        for dir in [self.dir_model, self.dir_png, self.dir_png_lc, self.dir_png_performance, self.dir_png_shap]:
+        for dir in [self.dir_model, self.dir_png, self.dir_png_lc, self.dir_png_performance, self.dir_png_shap, self.dir_png_raw]:
             if not dir.exists():
                 dir.mkdir(parents=True)
 
@@ -326,6 +329,9 @@ class ShapBasedExplainer:
         # 保存SHAP值
         self.h5rw.write_shap(model=self, group=self.abbrname)
 
+        # 相关性图
+        self.plot_r_matrix()
+
         # 保存shap值排序图
         self.plot_shap_global()
 
@@ -412,6 +418,19 @@ class ShapBasedExplainer:
             plt.show()
         else:
             plt.close()
+
+    def plot_r_matrix(self, show=False, dpi : int = 100):
+        """ 相关性矩阵作图 
+        2025-11-30  v1  Created by LiuJun
+        """
+
+        plot.plotRMatrix(
+            data_raw=self.df_raw,
+            path_png=self.dir_png_raw / f'{self.filename}_r_matrix_{self.abbrname}.png',
+            dpi=dpi,
+            show=show,
+        )
+
 
     def plot_shap_global(self, show=False, dpi : int = 100):
         """ global shapley value作图

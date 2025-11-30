@@ -221,8 +221,15 @@ def shap_dependence(data_shap: pd.DataFrame, data_raw: pd.DataFrame, path_png: s
     else:
         ax: list[Axes] = ax.flatten()   # type: ignore
 
-    n = 0
-    for m in data_shap.columns:
+    # 计算全局shap值
+    df_shap_global = data_shap.abs().mean(axis=0)
+
+    # 降序排列
+    df_shap_global.sort_values(ascending=False, inplace=True)
+
+    # n = 0
+    # for m in data_shap.columns:
+    for n, m in enumerate(df_shap_global.index):
 
         # 散点map图
         scatter_n = ax[n].scatter(
@@ -259,7 +266,7 @@ def shap_dependence(data_shap: pd.DataFrame, data_raw: pd.DataFrame, path_png: s
         # 子图标题
         ax[n].set_title(m)
 
-        n += 1
+        # n += 1
 
     # 关闭多余的子图
     for i in range(data_shap.shape[1], plot_rows * plot_cols):
@@ -428,17 +435,30 @@ def plotShapDependence(data_shap: pd.DataFrame, data_raw: pd.DataFrame, y: str, 
         plt.show()
 
 
-def plotRMatrix(path_h5: Path, figsize: tuple = None, path_png: Path = None, dpi=100):
+# def plotRMatrix(path_h5: Path, figsize: tuple = (12, 8), path_png: Path | None = None, dpi: int = 100):
+def plotRMatrix(
+        data_raw: pd.DataFrame, 
+        # path_h5: Path, 
+        figsize: tuple = (18, 12), 
+        dict_rename: dict = {},
+        path_png: Path | None = None, 
+        dpi: int = 100,
+        show : bool = False,
+    ):
+    
     """ Pearson相关系数（R）矩阵作图 
     
     Parameters
     ----------
-    path_h5 : Path
-        训练数据h5文件所在路径
-    
+    data_raw : pd.DataFrame
+        训练数据（观测数据），含有和data_shap完全相同的datetime索引，自变量，最后一列为因变量
+
     figsize : tuple, optional
         画布大小, by default (10, 10)
     
+    dict_rename : dict, optional
+        列名映射， by default {}
+
     path_png : Path, optional
         保存路径, by default None
     
@@ -448,35 +468,56 @@ def plotRMatrix(path_h5: Path, figsize: tuple = None, path_png: Path = None, dpi
     """
 
     # 读取数据
-    df = hdf5.HDF5RW(path_h5=path_h5).df_raw
+    # df = hdf5.HDF5RW(path_h5=path_h5).df_raw
+    data_raw.to_csv(path_png.with_suffix('.csv'))
 
     # 计算相关系数矩阵
-    df_r = df.corr(method='pearson')[::-1]
+    df_r = data_raw.corr(method='pearson')
+    # df_r = data_raw.corr(method='pearson')[::-1]
+
+    # 只保留左下三角矩阵
+    arr2d_r = np.tril(df_r.to_numpy(), -1)[1:, :-1]
+
+    # 上三角元素设置为nan
+    arr2d_r[np.triu_indices_from(arr2d_r, 1)] = np.nan
 
     # print(data_y.shape)
-    label_x = df_r.columns  # 表头，横轴
-    label_y = df_r.index  # 纵轴，索引
+    label_x = df_r.columns[:-1]  # 表头，横轴
+    label_y = df_r.index[1:]  # 纵轴，索引
     # print(label_x, label_y)
 
+    # 列名映射
+    if len(dict_rename) != 0:
+        label_x = [dict_rename.get(i, i) for i in label_x]
+        label_y = [dict_rename.get(i, i) for i in label_y]
+
     # 对角线1替换为nan
-    array_r = df_r.to_numpy()
-    array_r[np.where(array_r == 1)] = np.nan
+    # array_r = df_r.to_numpy()
+    # array_r[np.where(array_r == 1)] = np.nan
 
     # 画布大小
-    if figsize is None:
-        figsize = (12, 8)
+    # if figsize is None:
+        # figsize = (12, 8)
 
     fig, ax = plt.subplots(1, 1, figsize=figsize, dpi=100, layout='constrained')
-    fig.canvas.manager.set_window_title("Pearson's R matrix")  # 窗口标题
-    heatmap = ax.imshow(array_r, cmap='RdYlGn', vmin=-1, vmax=1, aspect='auto')
+    # fig.canvas.manager.set_window_title("Pearson's R matrix")  # 窗口标题
+    heatmap = ax.imshow(arr2d_r, cmap='RdYlGn', vmin=-1, vmax=1, aspect='auto')
     # heatmap = ax.imshow(data_y, cmap='jet', vmin=-1, vmax=1)
 
     # x,y轴刻度及标签
-    ax.set_xticks(range(len(label_x)))
-    ax.set_yticks(range(len(label_y)))
+    ax.set_xticks(np.arange(len(label_x)), minor=False)
+    ax.set_xticks(np.arange(len(label_x))-0.5, minor=True)
+    ax.set_yticks(np.arange(len(label_y)), minor=False)
+    ax.set_yticks(np.arange(len(label_y))-0.5, minor=True)
     ax.set_xticklabels(label_x)
     ax.set_yticklabels(label_y)
     plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")  # x轴标签旋转45°
+
+    # ax.set_xticks(range(len(label_x)))
+    # ax.set_yticks(range(len(label_y)))
+    # ax.set_xticklabels(label_x)
+    # ax.set_yticklabels(label_y)
+    # plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")  # x轴标签旋转45°
 
     # 数值标注的字体大小
     if len(label_y) < 5:
@@ -492,20 +533,33 @@ def plotRMatrix(path_h5: Path, figsize: tuple = None, path_png: Path = None, dpi
 
     # 添加数值标注
     valfmt = mticker.StrMethodFormatter('{x:.2f}')  # 标注保留两位小数
-    for i in range(array_r.shape[0]):
-        for j in range(array_r.shape[1]):
-            if not np.isnan(array_r[i, j]):
-                heatmap.axes.text(j, i, valfmt(array_r[i, j]), ha='center', va='center', color='black', fontsize=fs)
+    for i in range(arr2d_r.shape[0]):
+        for j in range(arr2d_r.shape[1]):
+            if not np.isnan(arr2d_r[i, j]):
+                heatmap.axes.text(j, i, valfmt(arr2d_r[i, j]), ha='center', va='center', color='black', fontsize=fs)
 
     cbar = plt.colorbar(heatmap, pad=0.01)  # 添加colorbar
     cbar.set_ticks(np.arange(-1, 1.05, 0.2))
 
+    # 去除图片边框
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+
+    # 设置网格线
+    ax.grid(which='minor', axis='both', linestyle='-', color='white', alpha=1, linewidth=1.5)
+    ax.tick_params(which='minor', bottom=False, left=False)
+
+    # 显示图片
+    if show:
+        plt.show()
+    
     # 保存图片
     if path_png:
-        plt.savefig(path_png, dpi=dpi)
+        plt.savefig(path_png, dpi=dpi, transparent=False)
+        plt.close()
     
-    plt.show()
-
 
 def plotRankingSHAP(
         data: list[dict], 
