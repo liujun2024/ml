@@ -374,6 +374,10 @@ def raw2h5(df_train: pd.DataFrame, df_test: pd.DataFrame, labels: list, path_h5:
     # 判断df_train和df_test的表头是否一致
     if df_train.columns.tolist() != df_test.columns.tolist():
         raise ValueError('df_train和df_test的表头不一致！')
+    
+    # 判断df_train的表头中是否有重复项
+    if df_train.shape[1] != len(set(df_train.columns.tolist())):
+        raise ValueError('df_train的表头中有重复项！')
 
     # 特征列表，即自变量列表
     list_x = [i for i in df_train.columns.tolist() if i not in labels]
