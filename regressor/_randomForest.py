@@ -1026,12 +1026,53 @@ class RF(ShapBasedExplainer):
         """ 保存训练超参数和模型表型 """
         print('学习曲线数据保存...', end=' ')
 
-        self.h5rw.write_hyperparameters(model=self, group=suffix_kw)
+        # self.h5rw.write_hyperparameters(model=self, group=suffix_kw)
 
         print('完成！')
 
         # 保存学习曲线图片
-        self.plot_lc()
+        # self.plot_lc()
+
+        # 保存模型表现图片
+        self.plot_performance()
+
+
+    def fit_one(self, overwrite=True):
+        """ 单次训练，使用固定参数训练 """
+
+        print(f'██ Training ONE... | {self.filename} | {suffix_kw} | N: {self.y_train.shape[0]}/{self.y_test.shape[0]} | {self.cv}-fold CV | CPU: {self.cpu}')
+        
+        # 判断是否存在已训练好的模型
+        if self.path_model.exists() and not overwrite:
+            print(f'模型已存在，跳过训练！')
+            return
+
+        """ 生成最优模型，并预测训练集和测试集 """
+        # 使用最优参数进行模型初始化
+        self.model = self.__create_model(dict_param=self.dict_params_best)
+        
+        # 拟合
+        self.model.fit(X=self.x_train, y=self.y_train)
+
+        """ 保存模型 """
+        print('模型保存...', end=' ')
+
+        sio.dump(obj=self.model, file=self.path_model, compression=zipfile.ZIP_LZMA, compresslevel=3)
+
+        print('完成！')
+
+        # 预测训练集和测试集
+        self._predict()
+
+        """ 保存训练超参数和模型表型 """
+        # print('学习曲线数据保存...', end=' ')
+
+        # self.h5rw.write_hyperparameters(model=self, group=suffix_kw)
+
+        # print('完成！')
+
+        # 保存学习曲线图片
+        # self.plot_lc()
 
         # 保存模型表现图片
         self.plot_performance()

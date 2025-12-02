@@ -229,7 +229,7 @@ class ShapBasedExplainer:
             index=self.df_test.index,
             )
     
-    def calculate_shap(self, cpu: int | None = None, overwrite=False, dask_client_address: str | None = None):
+    def calculate_shap(self, cpu: int = -1, overwrite=False, dask_client_address: str | None = None):
         """ 计算shap值, 用于替换auto_shap库 
         
         2025-11-18  v1  Created by LiuJun
@@ -241,10 +241,6 @@ class ShapBasedExplainer:
         if self.check_shap() and not overwrite:
             print('已存在，跳过！')
             return
-
-        # 并行处理的cpu核心数
-        if cpu is not None:
-            self.cpu_shap = cpu
         
         # 判断使用使用dask分布式计算
         if dask_client_address is not None:
@@ -253,13 +249,13 @@ class ShapBasedExplainer:
 
             self.df_shap, self.float_shap_expected_value, self.series_global_shap = utils.calculate_shap_dask(
                 model=self.model, X=self.df_raw.loc[:, self.list_x],     # type: ignore
-                dask_client=client, cpu=self.cpu_shap,
+                dask_client=client, cpu=cpu,
             )
         
         else:
             self.df_shap, self.float_shap_expected_value, self.series_global_shap = utils.calculate_shap_local(
                 model=self.model, X=self.df_raw.loc[:, self.list_x],     # type: ignore
-                cpu=self.cpu_shap,
+                cpu=cpu,
             )
 
         # 保存SHAP值
@@ -299,7 +295,7 @@ class ShapBasedExplainer:
 
         print('完成！')
 
-    def cal_shap(self, cpu: int | None = None, overwrite=False):
+    def cal_shap(self, cpu: int = -1, overwrite=False):
         """ 计算SHAP值 """
 
         print('计算SHAP值、保存、作图...', end=' ')
@@ -309,14 +305,10 @@ class ShapBasedExplainer:
             print('已存在，跳过！')
             return
 
-        # 并行处理的cpu核心数
-        if cpu is not None:
-            self.cpu_shap = cpu
-        
         # 调用函数计算
         self.df_shap, self.float_shap_expected_value, self.series_global_shap = generate_shap_values(
             model=self.model, x_df=self.df_raw.loc[:, self.list_x],     # type: ignore
-            n_jobs=self.cpu, tree_model=True, regression_model=True, boosting_model=True,
+            n_jobs=cpu, tree_model=True, regression_model=True, boosting_model=True,
         )
 
         # 添加索引、设置索引名

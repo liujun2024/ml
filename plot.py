@@ -214,8 +214,11 @@ def shap_dependence(data_shap: pd.DataFrame, data_raw: pd.DataFrame, path_png: s
     plot_rows = math.floor(data_shap.shape[1] ** 0.5)
     plot_cols = math.ceil(data_shap.shape[1] / plot_rows)
 
+    # 画布尺寸
+    figsize = (3 * plot_cols, 3 * plot_rows)
+
     # 画布设置
-    fig, ax = plt.subplots(nrows=plot_rows, ncols=plot_cols, figsize=(18, 10), layout='constrained')    # type: ignore
+    fig, ax = plt.subplots(nrows=plot_rows, ncols=plot_cols, figsize=figsize, layout='constrained')    # type: ignore
     if plot_rows * plot_cols == 1:
         ax: list[Axes] = [ax]   # type: ignore
     else:
@@ -439,7 +442,7 @@ def plotShapDependence(data_shap: pd.DataFrame, data_raw: pd.DataFrame, y: str, 
 def plotRMatrix(
         data_raw: pd.DataFrame, 
         # path_h5: Path, 
-        figsize: tuple = (18, 12), 
+        figsize: tuple | None = None, 
         dict_rename: dict = {},
         path_png: Path | None = None, 
         dpi: int = 100,
@@ -454,7 +457,7 @@ def plotRMatrix(
         训练数据（观测数据），含有和data_shap完全相同的datetime索引，自变量，最后一列为因变量
 
     figsize : tuple, optional
-        画布大小, by default (10, 10)
+        画布大小, by default (18, 12)
     
     dict_rename : dict, optional
         列名映射， by default {}
@@ -496,8 +499,8 @@ def plotRMatrix(
     # array_r[np.where(array_r == 1)] = np.nan
 
     # 画布大小
-    # if figsize is None:
-        # figsize = (12, 8)
+    if figsize is None:
+        figsize = (int(3 * len(label_x) / 5), int(2 * len(label_x) / 5))
 
     fig, ax = plt.subplots(1, 1, figsize=figsize, dpi=100, layout='constrained')
     # fig.canvas.manager.set_window_title("Pearson's R matrix")  # 窗口标题
@@ -736,7 +739,7 @@ def plotShapRanking(
         path_png: Path | None = None, 
         dpi=100, 
         head: int | None = None,
-        figsize: tuple = (8, 10),
+        figsize: tuple | None = None,
         show: bool = False,
     ):
     """ 基于shap值的特征重要性排序，含beeswarm图
@@ -747,7 +750,7 @@ def plotShapRanking(
     path_png : Path | None， 图片保存路径
     dpi : int， 分辨率，图片保存分辨率
     head : int | None， 重要性排序的前几项
-    figsize : tuple， 画布大小
+    figsize : tuple， 画布大小，默认(8, 10)
     
     2025.08.14 合并相关函数
     """
@@ -772,6 +775,10 @@ def plotShapRanking(
     if head is not None:
         df_shap_global = df_shap_global.tail(head)
         df_shap_global_percent = df_shap_global_percent.tail(head)
+
+    # 画布尺寸
+    if figsize is None:
+        figsize = (8, int(df_shap_global.shape[0] / 3))
 
     # 画布设置
     _, axs = plt.subplots(figsize=figsize, ncols=2, nrows=1, dpi=dpi, sharey=False, layout='none')

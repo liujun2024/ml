@@ -122,8 +122,8 @@ class HDF5RW:
 
         if loc_shap not in f.keys():
             f.close()
-            return False
-            # raise ValueError(f'{self.path_h5}中不存在{group}的shap数据！')
+            raise ValueError(f'{self.path_h5}中不存在{group}的shap数据！')
+            # return False
 
         # 读取数据并存入DataFrame，这里的columns之前有误，2025-01-03更正
         self.df_shap = pd.DataFrame(
