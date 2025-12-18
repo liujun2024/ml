@@ -260,6 +260,9 @@ class ShapBasedExplainer:
 
         # 保存SHAP值
         self.h5rw.write_shap(model=self, group=self.abbrname)
+        
+        # 相关性图
+        self.plot_r_matrix()
 
         # 保存shap值排序图
         self.plot_shap_global()
