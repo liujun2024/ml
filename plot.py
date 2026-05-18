@@ -292,7 +292,20 @@ def shap_dependence(data_shap: pd.DataFrame, data_raw: pd.DataFrame, path_png: s
         plt.show()
 
 
-def shap_dependence_base(data_plot: pd.DataFrame, ax: Axes, title_cb: str = '', ylabel_shap: str = 'SHAP value (μg·m$^{-3}$)'):
+def shap_dependence_base(
+        data_plot: pd.DataFrame, 
+        ax: Axes, 
+        title_cb: str = '', 
+        ylabel_shap: str = 'SHAP value (μg·m$^{-3}$)',
+        ylabel_cb: str = '',
+        cmap: str = 'YlGn',
+        cbar_log: bool = False,
+        hist_position: Literal['in', 'out'] = 'in',
+        cbar_extend: Literal['neither', 'both'] = 'both',
+        show_hist: bool = True,
+        vmin: float | None = None,
+        vmax: float | None = None
+    ):
     """ 绘制单个特征的dependence图 
     
     Parameters
@@ -311,17 +324,26 @@ def shap_dependence_base(data_plot: pd.DataFrame, ax: Axes, title_cb: str = '', 
             # marker=".",  # 点
             marker="$\u25EF$",  # 空心圆圈
             alpha=0.8,  # 透明度
-            cmap='YlGn',  # 颜色映射
+            # cmap='YlGn',  # 颜色映射
+            cmap=cmap,  # 颜色映射
             lw=0.25,  # 线宽
+            vmin=vmin,  # 颜色映射最小值
+            vmax=vmax,  # 颜色映射最大值
             # norm=mcolors.LogNorm(),  # cmap对数
         )
 
     # 统计直方图
-    ax_in = ax.inset_axes(bounds=(0, 1.0, 1, 0.10), sharex=ax)
-    ax_in.hist(x=data_plot.loc[:, 'x'], bins=50, histtype='bar', color='silver', edgecolor='grey', lw=0.1)
+    if show_hist:
 
-    # 直方图关闭坐标轴，只保留数据
-    ax_in.set_axis_off()
+        if hist_position == 'in':
+            ax_in = ax.inset_axes(bounds=(0, 0, 1, 0.10), sharex=ax)
+        else:
+            ax_in = ax.inset_axes(bounds=(0, 1.0, 1, 0.10), sharex=ax)
+
+        ax_in.hist(x=data_plot.loc[:, 'x'], bins=50, histtype='bar', color='silver', edgecolor='grey', lw=0.1)
+
+        # 直方图关闭坐标轴，只保留数据
+        ax_in.set_axis_off()
 
     # 轴标签
     # ax[n].set_xlabel(suptitle)
@@ -330,12 +352,19 @@ def shap_dependence_base(data_plot: pd.DataFrame, ax: Axes, title_cb: str = '', 
     # colorbar
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("right", size="4%", pad=0.05)
-    cb = plt.colorbar(scatter, cax=cax, extend='neither')
+    cb = plt.colorbar(scatter, cax=cax, extend=cbar_extend)
     # cb = fig.colorbar(scatter, ax=ax, extend='neither')
     # cb = fig.colorbar(scatter_n, ax=ax[n], extend='both')
 
     # colorbar标题
     cb.ax.set_title(title_cb, fontsize='small')
+
+    # colorbar标签
+    cb.set_label(ylabel_cb, fontsize='x-small')
+
+    # colorbar对数
+    if cbar_log:
+        cb.ax.set_yscale('log')
 
     # 返回ax
     return ax
