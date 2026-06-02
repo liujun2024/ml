@@ -231,7 +231,7 @@ class ShapBasedExplainer:
     
     def calculate_shap(self, cpu: int = -1, overwrite=False, dask_client_address: str | None = None):
         """ 计算shap值, 用于替换auto_shap库 
-        
+
         2025-11-18  v1  Created by LiuJun
         """
 
@@ -339,8 +339,9 @@ class ShapBasedExplainer:
         """ 检查shap值是否存在 """
         
         # return self.h5rw.read_shap(group=self.abbrname)
-        if self.h5rw.read_shap(group=self.abbrname) is not False:
-            return True
+        # if self.h5rw.read_shap(group=self.abbrname) is not False:
+            # return True
+        return self.h5rw.check_shap(group=self.abbrname)
 
     def read_shap(self):
         """ 读取shap值 """

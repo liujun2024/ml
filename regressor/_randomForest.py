@@ -1031,7 +1031,7 @@ class RF(ShapBasedExplainer):
         print('完成！')
 
         # 保存学习曲线图片
-        # self.plot_lc()
+        self.plot_lc()
 
         # 保存模型表现图片
         self.plot_performance()

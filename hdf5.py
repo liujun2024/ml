@@ -111,6 +111,12 @@ class HDF5RW:
         # 关闭文件
         self.f.close()
 
+    def check_shap(self, group: str):
+        """ 检查shap数据是否存在, 返回True/False """
+
+        return f'{group}/importance/shap' in self.f.keys()
+    
+
     def read_shap(self, group: str):
         """ 读取shap值 """
 
@@ -122,8 +128,9 @@ class HDF5RW:
 
         if loc_shap not in f.keys():
             f.close()
-            raise ValueError(f'{self.path_h5}中不存在{group}的shap数据！')
-            # return False
+            # raise ValueError(f'{self.path_h5}中不存在{group}的shap数据！')
+            print(f'{self.path_h5}中不存在{group}的shap数据！')
+            return False
 
         # 读取数据并存入DataFrame，这里的columns之前有误，2025-01-03更正
         self.df_shap = pd.DataFrame(
