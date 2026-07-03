@@ -1,6 +1,9 @@
 """ 机器学习作图相关的函数 """
 
 from __future__ import annotations
+import matplotlib
+matplotlib.use('Agg')  # 使用非交互式后端
+
 # import os
 import math
 import numpy as np
@@ -13,16 +16,19 @@ import matplotlib.ticker as mticker
 import matplotlib.cm as cm
 from matplotlib.axes import Axes
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-# import seaborn as sns
+import seaborn as sns
 # from matplotlib import rcParams, colors, ticker
 # from ml_main import cal_yearly_seasonal, cal_bin_mean_equidistance
 # import config as cfg
 # import ml_fitting as fit
-
+from collections.abc import Iterable
+from typing import Literal, Tuple
 # from . import _hdf5 as hdf5
 from ml import hdf5
 # import _hdf5 as hdf5
 # from allin1.ml import HDF5RW
+from numpy.typing import NDArray
+from plot.base import show_histogram, set_locator
 
 
 # 作图默认参数控制
@@ -140,55 +146,65 @@ def performance_scatter(data_:dict, annotation_: str, ax: Axes):
     y_11_train = (0, array1d_raw.max())
 
     # 1:1线
-    ax.plot((0, array1d_raw.max()), y_11_train, color='black', lw=2, label='1:1', ls='--', zorder=2)
+    ax.plot((0, array1d_raw.max()), y_11_train, color='black', lw=2, label='1:1', ls='--', zorder=10)
 
     # 拟合线端点
     fitting_y_train = (slope_train * array1d_raw.min() + intercept_train, 
                        slope_train * array1d_raw.max() + intercept_train)
 
     # 拟合线
-    ax.plot((array1d_raw.min(), array1d_raw.max()), fitting_y_train, color='green', lw=2, label='linear fitting', zorder=3)
+    ax.plot((array1d_raw.min(), array1d_raw.max()), fitting_y_train, color='green', lw=2, label='linear fitting', zorder=10)
     # ax.plot((array1d_raw.min(), array1d_raw.max()), fitting_y_train, color='red', lw=2, label='linear fitting', zorder=3)
 
     # 注释内容
-    annotation_train = "${y=%.2fx + %.2f}$\n${R^2=%.2f}$\n${RMSE=%.2f}$\n${MAE=%.2f}$" % (slope_train, intercept_train, data_['r2'], data_['rmse'], data_['mae'])
+    # annotation_train = "${y=%.2fx + %.2f}$\n${R^2=%.2f}$\n${RMSE=%.2f}$\n${MAE=%.2f}$" % (slope_train, intercept_train, data_['r2'], data_['rmse'], data_['mae'])
+    annotation_train = f"y = {slope_train :.2f}x + {intercept_train :.2f}\nR$^2$ = {data_['r2'] :.2f}\nRMSE = {data_['rmse'] :.2f}\nMAE = {data_['mae'] :.2f}"
 
     # 注释
-    ax.text(x=0.05, y=0.82, s=annotation_train, color='green', ha='left', va='top', transform=ax.transAxes)
+    ax.text(x=0.05, y=0.95, s=annotation_train, color='green', ha='left', va='top', transform=ax.transAxes, zorder=100, fontsize=12)
     # ax.text(x=0.05, y=0.95, s=annotation_train, color='red', ha='left', va='top', transform=ax.transAxes)
 
-    # 统计直方图-x轴
-    ax_hist1 = ax.twinx()
-    ax_hist1.hist(x=array1d_raw, bins=50, histtype='bar', color='silver', edgecolor='gray', lw=0.1, alpha=0.5, zorder=5)
-    # ax_hist1.hist(x=array1d_raw, bins=50, histtype='step', color='black', edgecolor='#9467bd', lw=1, alpha=1, zorder=5)
-    # ax_hist1.hist(x=array1d_raw, bins=50, histtype='bar', color='orange', edgecolor='darkorange', lw=0.1, alpha=0.3, zorder=5)
+    # 统计直方图
+    show_histogram(ax=ax, xdata=array1d_raw, ydata=array1d_predict, height=0.1, width=0.1, show_kde=False, position='in')
 
-    # 统计直方图-y轴
-    # plt.hist()
-    ax_hist2 = ax.twiny()
-    ax_hist2.hist(x=array1d_predict, bins=50,histtype='bar', color='silver', edgecolor='gray', lw=0.1, alpha=0.5, zorder=5, orientation='horizontal')
-    # ax_hist2.hist(x=array1d_predict, bins=50, histtype='step', color='black', edgecolor='#17becf', lw=1, alpha=1, zorder=5, orientation='horizontal')
-    # ax_hist2.hist(x=array1d_predict, bins=50,histtype='bar', color='orange', edgecolor='darkorange', lw=0.1, alpha=0.3, zorder=5, orientation='horizontal')
+    # # 统计直方图-x轴
+    # ax_hist1 = ax.twinx()
+    # ax_hist1.hist(x=array1d_raw, bins=50, histtype='bar', color='silver', edgecolor='gray', lw=0.1, alpha=0.5, zorder=5)
+    # # ax_hist1.hist(x=array1d_raw, bins=50, histtype='step', color='black', edgecolor='#9467bd', lw=1, alpha=1, zorder=5)
+    # # ax_hist1.hist(x=array1d_raw, bins=50, histtype='bar', color='orange', edgecolor='darkorange', lw=0.1, alpha=0.3, zorder=5)
 
-    # 直方图y轴范围降到1/10
-    ax_hist1.set_ylim(0, ax_hist1.get_ylim()[1] * 10)
-    ax_hist2.set_xlim(0, ax_hist2.get_xlim()[1] * 10)
+    # # 统计直方图-y轴
+    # # plt.hist()
+    # ax_hist2 = ax.twiny()
+    # ax_hist2.hist(x=array1d_predict, bins=50,histtype='bar', color='silver', edgecolor='gray', lw=0.1, alpha=0.5, zorder=5, orientation='horizontal')
+    # # ax_hist2.hist(x=array1d_predict, bins=50, histtype='step', color='black', edgecolor='#17becf', lw=1, alpha=1, zorder=5, orientation='horizontal')
+    # # ax_hist2.hist(x=array1d_predict, bins=50,histtype='bar', color='orange', edgecolor='darkorange', lw=0.1, alpha=0.3, zorder=5, orientation='horizontal')
 
-    # 直方图关闭坐标轴
-    # ax_y1.tick_params(labelright=False, right=False)
-    ax_hist1.set_axis_off()
-    ax_hist2.set_axis_off()
+    # # 直方图y轴范围降到1/10
+    # ax_hist1.set_ylim(0, ax_hist1.get_ylim()[1] * 10)
+    # ax_hist2.set_xlim(0, ax_hist2.get_xlim()[1] * 10)
+
+    # # 直方图关闭坐标轴
+    # # ax_y1.tick_params(labelright=False, right=False)
+    # ax_hist1.set_axis_off()
+    # ax_hist2.set_axis_off()
+
+    # 刻度格式
+    set_locator(ax=ax, which='both')
 
     # 标明train/test
-    ax.text(x=0.05, y=0.95, s=f'{annotation_} (N={array1d_raw.shape[0]})', color='black', ha='left', va='top', transform=ax.transAxes, fontsize=20)
+    # ax.text(x=0.05, y=0.95, s=f'{annotation_} (N={array1d_raw.shape[0]})', color='black', ha='left', va='top', transform=ax.transAxes, fontsize=20)
     # ax.text(x=0.6, y=0.95, s=annotation_, color='black', ha='left', va='top', transform=ax.transAxes, fontsize=20)
 
+    ax.text(x=1.02, y=0.5, s=f'{annotation_} (N={array1d_raw.shape[0]})', color='violet', ha='left', va='center', transform=ax.transAxes, fontsize=16, rotation=90)
+
     # xlabel、ylabel
-    ax.set_xlabel('Observation')
-    ax.set_ylabel('Prediction')
+    ax.set_xlabel('Obs.')
+    ax.set_ylabel('Pred.')
 
     # 图例
-    ax.legend(loc='lower right', frameon=False, handlelength=2.3)
+    leg = ax.legend(loc='lower right', frameon=False, handlelength=2.4, fontsize=12)
+    leg.set_zorder(100)
 
 
 def shap_dependence(data_shap: pd.DataFrame, data_raw: pd.DataFrame, path_png: str | Path | None = None, dpi : int = 100):
@@ -215,7 +231,7 @@ def shap_dependence(data_shap: pd.DataFrame, data_raw: pd.DataFrame, path_png: s
     plot_cols = math.ceil(data_shap.shape[1] / plot_rows)
 
     # 画布尺寸
-    figsize = (3 * plot_cols, 3 * plot_rows)
+    figsize = (4 * plot_cols, 2.5 * plot_rows)
 
     # 画布设置
     fig, ax = plt.subplots(nrows=plot_rows, ncols=plot_cols, figsize=figsize, layout='constrained')    # type: ignore
@@ -249,15 +265,19 @@ def shap_dependence(data_shap: pd.DataFrame, data_raw: pd.DataFrame, path_png: s
         )
 
         # 统计直方图
-        ax_in = ax[n].inset_axes(bounds=(0, 1.0, 1, 0.15), sharex=ax[n])
-        ax_in.hist(x=data_raw.loc[:, m], bins=50, histtype='bar', color='silver', edgecolor='grey', lw=0.1)
+        show_histogram(ax=ax[n], xdata=data_raw.loc[:, m], ydata=data_shap.loc[:, m], height=0.1, width=0.1, show_kde=False, position='in')
+        # ax_in = ax[n].inset_axes(bounds=(0, 1.0, 1, 0.15), sharex=ax[n])
+        # ax_in.hist(x=data_raw.loc[:, m], bins=50, histtype='bar', color='silver', edgecolor='grey', lw=0.1)
 
-        # 直方图关闭坐标轴，只保留数据
-        ax_in.set_axis_off()
+        # # 直方图关闭坐标轴，只保留数据
+        # ax_in.set_axis_off()
+
+        # 刻度格式
+        set_locator(ax=ax[n], which='both')
 
         # 轴标签
         # ax[n].set_xlabel(suptitle)
-        ax[n].set_ylabel('shap')
+        # ax[n].set_ylabel('shap')
 
         # colorbar
         cb = fig.colorbar(scatter_n, ax=ax[n], extend='neither')
@@ -267,9 +287,13 @@ def shap_dependence(data_shap: pd.DataFrame, data_raw: pd.DataFrame, path_png: s
         cb.ax.set_title(data_raw.columns[-1], fontsize=10)
 
         # 子图标题
-        ax[n].set_title(m)
+        # ax[n].set_title(m)
+        ax[n].text(x=0.5, y=0.98, s=m, color='black', ha='center', va='top', transform=ax[n].transAxes)
 
         # n += 1
+
+    # 共同ylabel
+    fig.supylabel('SHAP value')
 
     # 关闭多余的子图
     for i in range(data_shap.shape[1], plot_rows * plot_cols):
@@ -849,6 +873,10 @@ def plotShapRanking(
     # 对齐ax1和ax2的y轴范围
     axs[1].set_ylim(axs[0].get_ylim())
 
+    # 刻度格式
+    set_locator(ax=axs[0], which='x')
+    set_locator(ax=axs[1], which='x')
+
     # ax2图的colorbar
     ax_cbar = axs[1].inset_axes(bounds=(1.02, 0, 0.03, 1))
 
@@ -890,114 +918,6 @@ def plotShapRanking(
         plt.show()
     else:
         plt.close()
-
-
-# def beeswarm_base(
-#         data_raw: pd.DataFrame, 
-#         data_shap: pd.DataFrame, 
-#         ax: Axes,
-#         show_colorbar: bool = True,
-#         show: bool = False,
-#     ):
-#     """ 
-#     仅绘制蜂群beeswarm图
-
-#     Parameters
-#     ----------
-#     data_raw : pd.DataFrame， 原始数据
-#     data_shap : pd.DataFrame， shap值
-#     ax : Axes， 画布对象
-#     # head : int， 绘制重要性排序的前几个特征
-    
-#     2025-11-19  v1  从plot_beeswarm中提取beeswarm图绘制代码，并修改为仅绘制beeswarm图
-#     """
-    
-#     # from shap.plots._beeswarm import summary_legacy
-#     # from shap.plots.colors import red_blue
-
-#     # from ._plot_beeswarm import summary_legacy
-#     # from ._colors import red_blue
-
-#     print('11')
-
-#     # 计算绝对值均值
-#     # df_shap_global = data_shap.abs().mean(axis=0).sort_values(ascending=True).tail(head)
-
-#     # 前head个特征列表
-#     # list_head = df_shap_global.index.tolist()
-
-#     # print('df_shap_global:\n', df_shap_global)
-
-#     # 准备画布
-#     # fig, (ax1, ax2) = plt.subplots(figsize=figsize, ncols=2, nrows=1, dpi=100, sharey=False)
-
-#     # 特征重要性柱状图
-#     # df_shap_global.plot.barh(width=0.7, color='#1e87e4', ax=ax1, zorder=10)
-
-#     # 网格线
-#     # ax1.grid(visible=True, which='major', axis='y', color="#cccccc", lw=0.5, dashes=(1, 4), zorder=0)
-
-#     # 获取当前的 Axes 对象，并将 scatter 图形对象添加到子图中
-#     summary_legacy(
-#         df_shap=data_shap, 
-#         df_raw=data_raw, 
-#         # feature_names=list_head,
-#         # plot_type='dot',
-#         # show=False,
-#         ax=ax,
-#         show_colorbar=show_colorbar,
-#     )
-
-#     # scatter_path_collection = ax_.collections[0]
-
-#     # 将散点图的PathCollection对象添加到子图中
-#     # ax.add_collection(scatter_path_collection)
-
-#     ax.set_xlabel('SHAP value', verticalalignment='center_baseline', fontsize=18)
-
-#     # # 全国统一模型前10
-#     # ax[5].barh(['SO2', 'CO', 'NO2', '农田', 'O3'][::-1], [4.69, 2.37, 1.56, 1.48, 1.47][::-1], height=0.6)
-#     # ax[5].set_title('全国统一模型', fontsize=20)
-#     # ax1.set_xlabel('mean(|SHAP value|)', verticalalignment='center_baseline', fontsize=18)
-#     # ax.set_xlabel('$\overline{\mathrm{|SHAP\;value|}}$', verticalalignment='center_baseline', fontsize=12)
-
-#     # ax[5].set_axis_off()
-
-#     # ax.set_yticklabels([])
-
-#     # ax1.set_title('Importance plot')
-#     # ax2.set_title('Summary plot')
-
-#     # ax.set_ylim(ax1.get_ylim())
-
-#     # y_ticklabel = ax1.get_yticklabels()
-#     # ax1.set_yticklabels(y_ticklabel, fontsize=18)
-
-#     # x1_ticklabel = ax1.get_xticklabels()
-#     # ax1.set_xticklabels(x1_ticklabel, fontsize=18)
-
-#     # x2_ticklabel = ax.get_xticklabels()
-#     # ax.set_xticklabels(x2_ticklabel, fontsize=18)
-
-#     # colorbar
-#     # ax_cbar = ax1.inset_axes([1, 0, 0.2, 1])
-
-#     # ax_cbar = ax.inset_axes(bounds=(1.02, 0, 0.02, 1))
-
-#     # m = cm.ScalarMappable(cmap=red_blue)
-#     # m.set_array([0, 1])
-#     # cb = plt.colorbar(m, cax=ax_cbar, extend='neither', ticks=[0.015, 0.985])
-#     # cb.set_ticklabels(['low', 'high'])
-#     # cb.outline.set_visible(False)
-#     # cb.ax.tick_params(labelsize=16, length=0)
-
-#     # # colorbar标题
-#     # # cb_d.ax.set_title(data_.columns[-1], fontsize=10)
-
-#     # # cb = pl.colorbar(m, ax=pl.gca(), ticks=[0, 1], aspect=80)
-#     # # # cb.set_ticklabels([labels['FEATURE_VALUE_LOW'], labels['FEATURE_VALUE_HIGH']])
-#     # cb.set_label('Feature value', size='medium', labelpad=0, va='bottom')
-#     # # cb.set_alpha(1)
 
 
 def shap_interaction_summary(
@@ -1067,7 +987,6 @@ def shap_interaction_summary(
     
     if show:
         plt.show()
-
 
 
 def beeswarm_base(
@@ -1222,6 +1141,297 @@ def beeswarm_base(
 
         # colorbar标题
         cb.set_label('Normalized feature value', size='medium', labelpad=0, va='bottom')
+
+
+# 模型性能及参数汇总图
+def plot_performance_summary(
+        dir_project: Path,
+        name_prefix: Iterable[str], 
+        figsize: Tuple[int, int] = (16, 12),
+        group: str = 'rf',
+        ncols: Literal[1, 2, 4] = 2,
+        markersize_mean: int = 5,
+        markersize_median: int = 3,
+        rotation_x: int = 0,
+        path_png: Path | None = None,
+):
+    """
+    汇总项目下多个模型的R2、RMSE、MAE、slope of pred. vs. obs.、残差分布图、cv-r2
+
+    Parameters
+    ----------
+    dir_project : Path
+        项目路径
+    name_prefix : Iterable[str]
+        模型名称前缀列表, 用于匹配模型h5文件
+    figsize : tuple
+        画布大小
+    group : str
+        h5文件中的模型简称: rf, xgboost
+    ncols : Literal[1, 2, 4]
+        子图列数
+    markersize_mean : int
+        均值点大小
+    markersize_median : int
+        中位数点大小
+    rotation_x : int
+        x轴标签旋转角度, 当ncols不为1时可用
+    path_png: Path | None
+        图片保存路径
+
+    Notes
+    -----
+    2026-06-29
+        v1
+    """
+
+    from plot import base
+    from smogchamber import kit
+    matplotlib.use('TkAgg')
+
+    base.set_global_rcparams()
+
+    # h5文件所在路径
+    dir_hdf5 = dir_project / 'h5'
+
+    # 存放有数据的name
+    valid_names = []
+
+    # 数据存入列表
+    list_r2 = []    # 存入r2
+    list_rmse = []  # 存入rmse
+    list_mae = []   # 存入mae
+    list_cv_r2 = [] # 存入交叉验证R2数组，用于box图
+    list_residual_err = []  # 存入残差数组，用于box图
+    list_slope = [] # 存入验证集斜率，Predict vs. Obs.
+
+    # 遍历模型名称
+    for name in name_prefix:
+
+        # 获取模型名称对应的h5文件
+        match_name = [f for f in dir_hdf5.glob(f'{name}*.h5') if f.is_file()]
+        if match_name:
+            path_name = match_name[0]
+        else:
+            print(f'名称未匹配：{name}')
+            continue
+        
+        # 数据读取实例化
+        h5_name = hdf5.HDF5RW(path_h5=path_name)
+        
+        # 读取模型性能数据
+        status = h5_name.read_performance()
+        if not status:
+            continue
+
+        dict_model = h5_name.dict_model
+
+        if group not in dict_model:
+            print(f'未发现{group}模型数据')
+        
+        # 获得模型数据
+        data_name = dict_model[group]
+        
+        # 存入R2、RMSE、MAE、cv-r2
+        list_r2.append(data_name['r2_test'])
+        list_rmse.append(data_name['rmse_test'])
+        list_mae.append(data_name['mae_test'])
+        list_cv_r2.append(data_name['cv-r2'])
+
+        # 获得predict_test
+        arr1d_pred_test = data_name['predict_test']
+
+        # 获得obs_test
+        arr1d_obs_test = h5_name.y_test
+
+        # 计算残差
+        arr1d_residual_err = arr1d_pred_test - arr1d_obs_test
+        list_residual_err.append(arr1d_residual_err)
+
+        # 计算斜率
+        (slope, intercept), _ = kit.fitting_equation(x=arr1d_obs_test, y=arr1d_pred_test, fitting_order=1)
+        list_slope.append(slope)
+        
+        # 名称存入列表
+        valid_names.append(name)
+
+    # 准备画布
+    fig, axs = plt.subplots(ncols=ncols, nrows=4 // ncols, figsize=figsize, layout='constrained', sharex=True)
+    axs: list[Axes] = axs.flatten()
+
+    # 作图：R2、RMSE、MAE
+    a = axs[0].plot(list_r2, marker='o', label='R$^2$', color='tab:blue')
+    axs0_right = axs[0].twinx()
+    b = axs0_right.plot(list_rmse, marker='s', label='RMSE', color='tab:orange')
+    c = axs0_right.plot(list_mae, marker='^', label='MAE', color='tab:green')
+
+    axs[0].set_ylabel('R$^2$')
+    axs[0].set_ylim(0, 1)
+    axs0_right.set_ylabel('RMSE, MAE')
+
+    # 双y轴legend
+    lines = a + b + c
+    axs[0].legend(handles=lines, labels=[l.get_label() for l in lines], loc='best', frameon=False, ncols=3)
+    
+    # 网格线
+    axs[0].grid(which='major', axis='y', color='silver', lw=1.0, ls='-')
+
+    # 作图：slope
+    axs[1].plot(list_slope, marker='o', label='slope', color='black')
+    axs[1].set_ylabel('Slope')
+
+    # 作图：残差
+    axs[2].boxplot(
+        list_residual_err, 
+        positions=range(len(valid_names)),
+        widths=0.8,
+        showfliers=False, showmeans=True,  # 不显示outlier, 显示平均值点
+        showcaps=False,  # 不显示whisker两端水平线
+        whis=(5, 95),  # 设置whisker范围为5-95%
+        boxprops=dict(linewidth=1.5, color='black'),  # box框框格式
+        meanprops=dict(marker='s', markersize=markersize_mean, markerfacecolor='limegreen', markeredgecolor='blue', markeredgewidth=1.5),  # 均值点格式
+        medianprops=dict(linestyle='-', linewidth=markersize_median, color='red'),  # 中位数线格式
+        whiskerprops=dict(linewidth=1.5)  # whisker格式
+    )
+    axs[2].set_ylabel('Residual Error')
+
+    # 作图：cv-r2
+    axs[3].boxplot(
+        list_cv_r2, 
+        positions=range(len(valid_names)),
+        widths=0.8,
+        showfliers=False, showmeans=True,  # 不显示outlier, 显示平均值点
+        showcaps=False,  # 不显示whisker两端水平线
+        whis=(5, 95),  # 设置whisker范围为5-95%
+        boxprops=dict(linewidth=1.5, color='black'),  # box框框格式
+        meanprops=dict(marker='s', markersize=markersize_mean, markerfacecolor='limegreen', markeredgecolor='blue', markeredgewidth=1.5),  # 均值点格式
+        medianprops=dict(linestyle='-', linewidth=markersize_median, color='red'),  # 中位数线格式
+        whiskerprops=dict(linewidth=1.5)  # whisker格式
+    )
+    axs[3].set_ylabel('CV-R$^2$')
+
+    axs[3].set_xlim(-0.5, len(valid_names) - 0.5)
+    axs[3].set_ylim(0, 1)
+
+    base.set_locator(ax=axs[0], which='y', ylocator=mticker.MultipleLocator(0.2))
+    base.set_locator(ax=axs0_right, which='y')
+    base.set_locator(ax=axs[1], which='y')
+    base.set_locator(ax=axs[2], which='y')
+    base.set_locator(ax=axs[3], which='y', ylocator=mticker.MultipleLocator(0.2))
+
+    # 网格线
+    axs[3].grid(which='major', axis='y', color='silver', lw=1.0, ls='-')
+
+    # 如果ncols=1，则隐藏x轴刻度
+    if ncols == 1:
+
+        # 隐藏刻度
+        for ax in axs:
+            ax.tick_params(axis='x', which='both', length=0)
+        
+        # 隐藏ticklabels
+        axs[3].set_xticklabels([])
+    
+    elif ncols == 2:
+
+        for i in [2, 3]:
+                
+            # 设置xtick
+            axs[i].set_xticks(range(len(valid_names)))
+            
+            # 设置xticklabels
+            axs[i].set_xticklabels(valid_names, rotation=rotation_x, ha='center')
+    
+    elif ncols == 4:
+
+        for i in range(4):
+            
+            # 设置xtick
+            axs[i].set_xticks(range(len(valid_names)))
+            
+            # 设置xticklabels
+            axs[i].set_xticklabels(valid_names, rotation=rotation_x, ha='center')
+
+    # 保存图片
+    if path_png is not None:
+        plt.savefig(path_png, dpi=100)
+    
+    # 显示图片
+    plt.show()
+    
+
+# # 显示直方图
+# def show_histogram(ax: Axes, xdata: NDArray, ydata: NDArray, height: float = 0.15, width: float = 0.12, show_kde: bool = False, position: Literal['in', 'out'] = 'in') -> None:
+#     """ 
+#     在子图中显示数据在x、y轴上的频率分布情况 (直方图)
+
+#     Parameters
+#     ----------
+#     ax : matplotlib.axes.Axes
+#         子图
+#     xdata : np.ndarray
+#         x轴数据
+#     ydata : np.ndarray
+#         y轴数据
+#     height : float
+#         xdata的直方图高度, 相对于子图高度的比例
+#     width : float
+#         ydata的直方图宽度, 相对于子图宽度的比例
+#     show_kde : bool
+#         是否显示kde密度分布图
+#     position : str
+#         直方图位置, 'in' or 'out', 默认为'in'
+
+#     Notes
+#     -----
+#     2026-04-28 
+#         Created by LiuJun
+#     2026-05-08
+#         新增show_kde参数
+#     2026-07-03
+#         由plot模块中show_histogram函数移植而来
+#     """
+
+#     # 断言xdata、ydata均为一维数组
+#     assert xdata.ndim == 1, 'xdata must be 1D array'
+#     assert ydata.ndim == 1, 'ydata must be 1D array'
+
+#     # 断言xdata和ydata长度一致
+#     assert len(xdata) == len(ydata), 'xdata and ydata must have the same length'
+
+#     # 断言position
+#     assert position in ['in', 'out'], 'position must be "in" or "out"'
+
+#     # 根据position位置设置inset_axes
+#     if position == 'in':
+#         ax_x = ax.inset_axes(bounds=(0, 0, 1, height), sharex=ax)
+#         ax_x_kde = ax.inset_axes(bounds=(0, 0, 1, height), sharex=ax)
+#         ax_y = ax.inset_axes(bounds=(0, 0, width, 1), sharey=ax)
+#         ax_y_kde = ax.inset_axes(bounds=(0, 0, width, 1), sharey=ax)
+#     else:
+#         ax_x = ax.inset_axes(bounds=(0, 1, 1, height), sharex=ax)
+#         ax_x_kde = ax.inset_axes(bounds=(0, 1, 1, height), sharex=ax)
+#         ax_y = ax.inset_axes(bounds=(1, 0, width, 1), sharey=ax)    
+#         ax_y_kde = ax.inset_axes(bounds=(1, 0, width, 1), sharey=ax)    
+
+#     # 统计直方图
+#     ax_x.hist(x=xdata, bins=50, histtype='bar', color='#4C78A8', edgecolor='grey', lw=0.1, alpha=0.6, zorder=0)
+#     ax_y.hist(x=ydata, bins=50, histtype='bar', color='#4C78A8', edgecolor='grey', lw=0.1, alpha=0.6, zorder=0, orientation='horizontal')
+
+#     # kde密度分布图
+#     if show_kde:
+#         sns.kdeplot(x=xdata, fill=False, color='#1F3B73', alpha=1, linewidth=1.5, ax=ax_x_kde, legend=False, bw_adjust=0.5)
+#         sns.kdeplot(y=ydata, fill=False, color='#1F3B73', alpha=1, linewidth=1.5, ax=ax_y_kde, legend=False, bw_adjust=0.5)       
+
+#     # 直方图关闭坐标轴
+#     ax_x.set_axis_off()
+#     ax_y.set_axis_off()
+#     ax_x_kde.set_axis_off()
+#     ax_y_kde.set_axis_off()
+
+#     # 重设散点图zorder
+#     for coll in ax.collections:
+#         coll.set_zorder(10)
 
 
 if __name__ == '__main__':
