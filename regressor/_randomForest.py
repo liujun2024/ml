@@ -2,8 +2,10 @@
 
 v0.1e: 将原有的使用logistic拟合更改为二次差值 updated 2024-10-12
 """
-
 from __future__ import annotations
+import matplotlib
+matplotlib.use('Agg')  # 使用非交互式后端
+
 from typing import Literal
 import warnings
 import math
@@ -16,9 +18,10 @@ import skops.io as sio
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import validation_curve
+from sklearn.model_selection import validation_curve, cross_val_score
 from auto_shap.auto_shap import generate_shap_values
 from dask.distributed import Client
+from plot.base import set_locator, set_log_scale
 
 
 from ml import hdf5, utils, plot
@@ -873,7 +876,7 @@ class RF(ShapBasedExplainer):
         nrows = math.floor(math.sqrt(len(list_order)))
         ncols = math.ceil(len(list_order) / nrows)
         # print(nrows, ncols)
-        fig, ax = plt.subplots(nrows=nrows, ncols=ncols, figsize=(12, 8), dpi=100, sharey=False, layout='constrained')
+        fig, ax = plt.subplots(nrows=nrows, ncols=ncols, figsize=(12, 6), dpi=100, sharey=False, layout='constrained')
         ax = ax.flatten()
 
         for i, k in enumerate(list_order):
@@ -896,7 +899,11 @@ class RF(ShapBasedExplainer):
             
             # x轴log
             if k in self.list_params_for_fitting:
-                ax[i].set_xscale('log')
+                # ax[i].set_xscale('log')
+                set_log_scale(ax=ax[i], which='x', minor_label_position=())
+                set_locator(ax=ax[i], which='y')
+            else:
+                set_locator(ax=ax[i], which='both')
 
             # legend
             ax[i].legend(frameon=False)
@@ -908,7 +915,7 @@ class RF(ShapBasedExplainer):
         path_png = self.dir_png_lc / f'{self.filename}_{suffix_kw}.png'
 
         # 保存图片
-        plt.savefig(path_png, dpi=300)
+        plt.savefig(path_png, dpi=100)
         
         # 显示图片
         if show:
@@ -918,7 +925,7 @@ class RF(ShapBasedExplainer):
 
     def fit(self, cpu: int = 1, dask_client_address: str | None = None):
 
-        print(f'██ Training... | {self.filename} | {suffix_kw} | N: {self.y_train.shape[0]}/{self.y_test.shape[0]} | {self.cv}-fold CV | CPU: {self.cpu}')
+        print(f'██ Training... | {self.filename} | {suffix_kw} | N: {self.y_train.shape[0]}/{self.y_test.shape[0]} | {self.cv}-fold CV | CPU: {cpu}')
 
         """ 依次对各个参数进行优化 """
         list_p = list(self.dict_params_init.keys())
@@ -1007,11 +1014,19 @@ class RF(ShapBasedExplainer):
             self.dict_params_all[self.current_p] = df_score
 
         """ 生成最优模型，并预测训练集和测试集 """
+        print('生成最优模型...', end=' ')
+
         # 使用最优参数进行模型初始化
         self.model = self.__create_model(dict_param=self.dict_params_best)
         
         # 拟合
         self.model.fit(X=self.x_train, y=self.y_train)
+        print('完成！')
+
+        # 最有模型的交叉验证的得分
+        print('最优模型交叉验证得分...', end=' ')
+        self.cv_scores = cross_val_score(self.model, X=self.x_train, y=self.y_train, cv=self.cv, scoring='r2', n_jobs=cpu)
+        print('完成！')
 
         """ 保存模型 """
         print('模型保存...', end=' ')
@@ -1026,7 +1041,7 @@ class RF(ShapBasedExplainer):
         """ 保存训练超参数和模型表型 """
         print('学习曲线数据保存...', end=' ')
 
-        # self.h5rw.write_hyperparameters(model=self, group=suffix_kw)
+        self.h5rw.write_hyperparameters(model=self, group=suffix_kw)
 
         print('完成！')
 
