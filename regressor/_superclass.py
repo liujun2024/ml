@@ -1,6 +1,9 @@
 """ 设置超类，用于继承 """
 
 from __future__ import annotations
+import matplotlib
+matplotlib.use('Agg')  # 使用非交互式后端
+
 from typing import Literal
 from abc import ABC, abstractmethod
 import os
@@ -14,6 +17,7 @@ import matplotlib.pyplot as plt
 # from sklearn.model_selection import validation_curve
 from auto_shap.auto_shap import generate_shap_values
 import shap
+from plot.base import set_locator, set_date_locator_formatter
 
 from ml import hdf5, plot, utils
 
@@ -230,7 +234,7 @@ class ShapBasedExplainer:
             )
     
     def calculate_shap(self, cpu: int = -1, overwrite=False, dask_client_address: str | None = None):
-        """ 计算shap值, 用于替换auto_shap库 
+        """ 计算shap值, 用于替换auto_shap库
 
         2025-11-18  v1  Created by LiuJun
         """
@@ -362,25 +366,29 @@ class ShapBasedExplainer:
                 ['a', 'a', 'b'],
                 ['c', 'c', 'd'],
             ],
-            # layout='constrained',
+            layout='constrained',
             # layout='tight',
             height_ratios=[1, 1],
             width_ratios=[4, 4, 4],
-            figsize=(14, 8),
+            figsize=(12, 6),
             # top=0.9,
         )
 
+        # 训练数据及预测数据时间序列按时间排序
+        df_predict_train = self.df_predict_train.sort_index()
+        df_predict_test = self.df_predict_test.sort_index()
+
         # 训练数据及预测数据时间序列
-        ax['a'].plot(self.df_predict_train.index, self.df_predict_train['obs'], color='grey', label='Observation', lw=0.5)
-        ax['a'].plot(self.df_predict_train.index, self.df_predict_train['predict'], color='black', label='Prediction', lw=0.5)
+        ax['a'].plot(df_predict_train.index, df_predict_train['obs'], color='grey', label='Obs.', lw=0.5)
+        ax['a'].plot(df_predict_train.index, df_predict_train['predict'], color='black', label='Pred.', lw=0.5)
 
         # 测试数据及预测数据时间序列
-        ax['c'].plot(self.df_predict_test.index, self.df_predict_test['obs'], color='grey', label='Observation', lw=0.5)
-        ax['c'].plot(self.df_predict_test.index, self.df_predict_test['predict'], color='black', label='Prediction', lw=0.5)
+        ax['c'].plot(df_predict_test.index, df_predict_test['obs'], color='grey', label='Obs.', lw=0.5)
+        ax['c'].plot(df_predict_test.index, df_predict_test['predict'], color='black', label='Pred.', lw=0.5)
 
         # 标明train/test
-        ax['a'].text(x=0.02, y=0.95, s='Training', color='black', ha='left', va='top', transform=ax['a'].transAxes, fontsize=20)
-        ax['c'].text(x=0.02, y=0.95, s='Test', color='black', ha='left', va='top', transform=ax['c'].transAxes, fontsize=20)
+        # ax['a'].text(x=0.02, y=0.95, s='Training', color='black', ha='left', va='top', transform=ax['a'].transAxes, fontsize=20)
+        # ax['c'].text(x=0.02, y=0.95, s='Test', color='black', ha='left', va='top', transform=ax['c'].transAxes, fontsize=20)
 
         # xlabel、ylabel
         ax['a'].set_ylabel(self.list_y[0])
@@ -389,6 +397,10 @@ class ShapBasedExplainer:
         # 图例
         ax['a'].legend(loc='upper right', frameon=False, ncol=2)
         ax['c'].legend(loc='upper right', frameon=False, ncol=2)
+
+        # 刻度
+        set_locator(ax=ax['a'], which='y')
+        set_locator(ax=ax['c'], which='y')
 
         # 散点图和直方图
         plot.performance_scatter(
