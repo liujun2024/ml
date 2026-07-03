@@ -202,6 +202,9 @@ class HDF5RW:
         self.f[f'{group}/predict/test'].attrs['rmse'] = model.rmse_test
         self.f[f'{group}/predict/test'].attrs['mae'] = model.mae_test
 
+        # 保存交叉验证数组
+        self.f[f'{group}/hyperparameters'].attrs['CV-R2'] = model.cv_scores
+
         self.f.close()
 
         # print('完成！')
@@ -209,67 +212,69 @@ class HDF5RW:
     def read_performance(self):
         """ 读取h5文件中模型表现数据 """
         
-        # t0 = time.time()
+        try:
+            # 打开h5文件
+            self.f = h5py.File(name=self.path_h5, mode='r')
 
-        # 打开h5文件
-        self.f = h5py.File(name=self.path_h5, mode='r')
+            # 模型列表
+            self.list_model = [i for i in self.f.keys() if i != '_raw']
 
-        # 模型列表
-        self.list_model = [i for i in self.f.keys() if i != '_raw']
+            if len(self.list_model) == 0:
+                self.f.close()
+                return False
 
-        if len(self.list_model) == 0:
+            # 为每个模型创建一个字典，训练结果存入其中
+            self.dict_model = {i: {} for i in self.list_model}
+
+            # 读取各模型训练结果数据
+            for model in self.list_model:
+
+                # # 判断hyperparameters是否存在
+                # if 'hyperparameters' not in self.f[f'{model}'].keys():
+                #     self.f.close()
+                #     print(f'{model}中hyperparameters不存在')
+                #     return False
+                
+                # 超参数列表
+                list_hyperparameters = list(self.f[f'{model}/hyperparameters'].keys())
+
+                # 遍历超参数
+                for hp in list_hyperparameters:
+
+                    # 读取超参数，写入字典
+                    self.dict_model[model][hp] = pd.DataFrame(
+                        data=self.f[f'{model}/hyperparameters/{hp}'][()], 
+                        columns=self.f[f'{model}/hyperparameters/{hp}'].attrs['columns'],
+                        index=self.f[f'{model}/hyperparameters/{hp}'].attrs['index'],
+                        )   # type: ignore
+
+                # 读取作图顺序
+                self.dict_model[model]['sequence_for_plot'] = self.f[f'{model}/hyperparameters'].attrs['sequence_for_plot']
+
+                # 读取预测结果
+                self.dict_model[model]['predict_train'] = self.f[f'{model}/predict/train'][()]  # type: ignore
+                self.dict_model[model]['predict_test'] = self.f[f'{model}/predict/test'][()]    # type: ignore
+
+                # 读取预测性能: r2, rmse, mae
+                self.dict_model[model]['r2_train'] = self.f[f'{model}/predict/train'].attrs['r2']
+                self.dict_model[model]['rmse_train'] = self.f[f'{model}/predict/train'].attrs['rmse']
+                self.dict_model[model]['mae_train'] = self.f[f'{model}/predict/train'].attrs['mae']
+                
+                self.dict_model[model]['r2_test'] = self.f[f'{model}/predict/test'].attrs['r2']
+                self.dict_model[model]['rmse_test'] = self.f[f'{model}/predict/test'].attrs['rmse']
+                self.dict_model[model]['mae_test'] = self.f[f'{model}/predict/test'].attrs['mae']
+
+                # 读取交叉验证结果
+                self.dict_model[model]['cv-r2'] = self.f[f'{model}/hyperparameters'].attrs['CV-R2']
+
+            # 关闭文件
             self.f.close()
-            # raise ValueError(f'{self.path_h5}中无模型训练结果！')
 
-        # print('model:', self.list_model)
-
-        # 为每个模型创建一个字典，训练结果存入其中
-        self.dict_model = {i: {} for i in self.list_model}
-
-        # 读取原始数据
-        # self.read_raw()
-
-        # 读取各模型训练结果数据
-        for model in self.list_model:
-            
-            # 超参数列表
-            list_hyperparameters = list(self.f[f'{model}/hyperparameters'].keys())
-
-            # 遍历超参数
-            for hp in list_hyperparameters:
-
-                # 读取超参数，写入字典
-                self.dict_model[model][hp] = pd.DataFrame(
-                    data=self.f[f'{model}/hyperparameters/{hp}'][()], 
-                    columns=self.f[f'{model}/hyperparameters/{hp}'].attrs['columns'],
-                    index=self.f[f'{model}/hyperparameters/{hp}'].attrs['index'],
-                    )   # type: ignore
-
-            # 读取作图顺序
-            self.dict_model[model]['sequence_for_plot'] = self.f[f'{model}/hyperparameters'].attrs['sequence_for_plot']
-
-            # 读取预测结果
-            self.dict_model[model]['predict_train'] = self.f[f'{model}/predict/train'][()]  # type: ignore
-            self.dict_model[model]['predict_test'] = self.f[f'{model}/predict/test'][()]    # type: ignore
-
-            # 读取预测性能: r2, rmse
-            self.dict_model[model]['r2_train'] = self.f[f'{model}/predict/train'].attrs['r2']
-            self.dict_model[model]['rmse_train'] = self.f[f'{model}/predict/train'].attrs['rmse']
-            self.dict_model[model]['mae_train'] = self.f[f'{model}/predict/train'].attrs['mae']
-            
-            self.dict_model[model]['r2_test'] = self.f[f'{model}/predict/test'].attrs['r2']
-            self.dict_model[model]['rmse_test'] = self.f[f'{model}/predict/test'].attrs['rmse']
-            self.dict_model[model]['mae_test'] = self.f[f'{model}/predict/test'].attrs['mae']
-
-            # # 读取预测性能：mae
-            # if 'mae' in self.f[f'{model}/predict/train'].attrs:
-            #     self.dict_model[model]['mae_train'] = self.f[f'{model}/predict/train'].attrs['mae']
-            #     self.dict_model[model]['mae_test'] = self.f[f'{model}/predict/test'].attrs['mae']
-            # else:
-
-
-        # 关闭文件
-        self.f.close()
+            return True
+    
+        except Exception as e:
+            print(e)
+            return False
 
         # t1 = time.time()
         # print('读取h5文件完成，耗时：', round(t1 - t0, 2), '秒')
