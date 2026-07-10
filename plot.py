@@ -1154,6 +1154,8 @@ def plot_performance_summary(
         markersize_median: int = 3,
         rotation_x: int = 0,
         path_png: Path | None = None,
+        title: str = '',
+        show: bool = True,
 ):
     """
     汇总项目下多个模型的R2、RMSE、MAE、slope of pred. vs. obs.、残差分布图、cv-r2
@@ -1255,6 +1257,11 @@ def plot_performance_summary(
         # 名称存入列表
         valid_names.append(name)
 
+    # 如果valid_names为空
+    if len(valid_names) == 0:
+        print('未发现有效数据')
+        return
+
     # 准备画布
     fig, axs = plt.subplots(ncols=ncols, nrows=4 // ncols, figsize=figsize, layout='constrained', sharex=True)
     axs: list[Axes] = axs.flatten()
@@ -1264,6 +1271,9 @@ def plot_performance_summary(
     axs0_right = axs[0].twinx()
     b = axs0_right.plot(list_rmse, marker='s', label='RMSE', color='tab:orange')
     c = axs0_right.plot(list_mae, marker='^', label='MAE', color='tab:green')
+
+    # 标题
+    fig.suptitle(title, fontsize=14, fontweight='bold')
 
     axs[0].set_ylabel('R$^2$')
     axs[0].set_ylim(0, 1)
@@ -1357,8 +1367,10 @@ def plot_performance_summary(
         plt.savefig(path_png, dpi=100)
     
     # 显示图片
-    plt.show()
-    
+    if show:
+        plt.show()
+    else:
+        plt.close()
 
 # # 显示直方图
 # def show_histogram(ax: Axes, xdata: NDArray, ydata: NDArray, height: float = 0.15, width: float = 0.12, show_kde: bool = False, position: Literal['in', 'out'] = 'in') -> None:
